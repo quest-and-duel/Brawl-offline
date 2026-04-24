@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Arena Demo — один игрок против ботов</title>
+    <link rel="stylesheet" href="css/style.css" />
+  </head>
+  <body>
+    <main class="wrap" role="main">
+      <header class="hud">
+        <h1 class="title">Arena Demo</h1>
+        <p class="sub">
+          WASD — движение · мышь — прицел · ЛКМ / ПКМ (удерж.) — атака · ← / → — смена оружия (после наград) · 1 / 2 / 3 — награда · M — меню · R — заново
+        </p>
+        <div class="stats" aria-live="polite">
+          <span id="hp">HP: 100</span>
+          <span id="bots">Боты: 3</span>
+          <span id="state" class="state"></span>
+        </div>
+      </header>
+      <canvas
+        id="game"
+        width="960"
+        height="540"
+        tabindex="0"
+        aria-label="Игровое поле: вид сверху, вы — синий круг, боты — красные"
+      ></canvas>
+    </main>
+    <script src="js/game.js" defer></script>
+  </body>
+</html>
