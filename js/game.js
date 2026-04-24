@@ -80,7 +80,7 @@ const WEAPONS = {
   pistol:   { fireCd: 0.35, bullets: 1, spread: 0,    damageMul: 1,    melee: false, label: "Пистолет 🔫" },
   shotgun:  { fireCd: 0.6,  bullets: 3, spread: 0.3,  damageMul: 0.5,  melee: false, label: "Дробовик 💥" },
   axe:      { fireCd: 0.45, bullets: 0, spread: 0,    damageMul: 1,    melee: true,  meleeRange: 58, meleeArc: 1.2, label: "Топор 🪓" },
-  minigun:  { fireCd: 0.25, bullets: 1, spread: 0.08, damageMul: 1,    melee: false, baseDamage: 5, label: "Миниган 🌀" },
+  minigun:  { fireCd: 0.1,  bullets: 1, spread: 0.08, damageMul: 1,    melee: false, baseDamage: 5, label: "Миниган 🌀" },
 };
 
 const AXE_BASE_DAMAGE = 45;
@@ -1411,42 +1411,55 @@ function drawPickup(p) {
 }
 
 function drawChoiceOverlay() {
-  ctx.fillStyle = "rgba(0,0,0,0.65)";
+  ctx.fillStyle = "rgba(0,0,0,0.68)";
   ctx.fillRect(0, 0, W, H);
   ctx.fillStyle = "#f8fafc";
-  ctx.font = `bold 32px ${EMOJI_FONT}`;
+  ctx.font = `bold 28px ${EMOJI_FONT}`;
   ctx.textAlign = "center";
-  ctx.fillText(`Уровень ${currentLevel + 1} пройден`, W / 2, 90);
-  ctx.font = `18px ${EMOJI_FONT}`;
+  ctx.fillText(`Уровень ${currentLevel + 1} пройден`, W / 2, 60);
+  ctx.font = `16px ${EMOJI_FONT}`;
   ctx.fillStyle = "#cbd5e1";
-  ctx.fillText("Выберите награду (1 / 2 / 3)", W / 2, 120);
+  ctx.fillText("Выберите награду (1 / 2 / 3 / 4)", W / 2, 88);
 
   const options = getAvailableUpgrades();
-  const cardW = 280;
-  const cardH = 150;
-  const gap = 24;
-  const totalW = options.length * cardW + (options.length - 1) * gap;
-  const startX = (W - totalW) / 2;
-  const y = H / 2 - cardH / 2;
+  const COLS = 2;
+  const cardW = 260;
+  const cardH = 140;
+  const gapX = 20;
+  const gapY = 14;
+  const rows = Math.ceil(options.length / COLS);
+  const totalGridH = rows * cardH + (rows - 1) * gapY;
+  const gridTop = H / 2 - totalGridH / 2 + 10;
 
   options.forEach((u, i) => {
-    const x = startX + i * (cardW + gap);
+    const col = i % COLS;
+    const row = Math.floor(i / COLS);
+    const rowCount = Math.min(COLS, options.length - row * COLS);
+    const rowW = rowCount * cardW + (rowCount - 1) * gapX;
+    const rowStartX = (W - rowW) / 2;
+    const x = rowStartX + col * (cardW + gapX);
+    const y = gridTop + row * (cardH + gapY);
+
     ctx.fillStyle = "#1e293b";
     ctx.strokeStyle = "#7dd3fc";
-    ctx.lineWidth = 3;
-    roundRect(x, y, cardW, cardH, 16);
+    ctx.lineWidth = 2.5;
+    roundRect(x, y, cardW, cardH, 14);
     ctx.fill();
     ctx.stroke();
+
     ctx.fillStyle = "#fde68a";
-    ctx.font = `bold 40px ${EMOJI_FONT}`;
-    ctx.fillText(`${i + 1}`, x + 36, y + 58);
+    ctx.font = `bold 36px ${EMOJI_FONT}`;
+    ctx.textAlign = "center";
+    ctx.fillText(`${i + 1}`, x + 30, y + 50);
+
     ctx.fillStyle = "#f8fafc";
-    ctx.font = `bold 22px ${EMOJI_FONT}`;
+    ctx.font = `bold 18px ${EMOJI_FONT}`;
     ctx.textAlign = "left";
-    ctx.fillText(u.title, x + 74, y + 46);
+    ctx.fillText(u.title, x + 58, y + 36);
+
     ctx.fillStyle = "#cbd5e1";
-    ctx.font = `15px ${EMOJI_FONT}`;
-    wrapText(u.desc, x + 20, y + 86, cardW - 40, 20);
+    ctx.font = `13px ${EMOJI_FONT}`;
+    wrapText(u.desc, x + 16, y + 66, cardW - 24, 18);
     ctx.textAlign = "center";
   });
 
@@ -1865,7 +1878,7 @@ window.addEventListener("keydown", (e) => {
       if (e.code === "Space") advanceLevel();
       return;
     }
-    const idx = { Digit1: 0, Digit2: 1, Digit3: 2, Numpad1: 0, Numpad2: 1, Numpad3: 2 }[e.code];
+    const idx = { Digit1: 0, Digit2: 1, Digit3: 2, Digit4: 3, Numpad1: 0, Numpad2: 1, Numpad3: 2, Numpad4: 3 }[e.code];
     if (idx !== undefined && opts[idx]) {
       applyUpgrade(opts[idx].id);
       advanceLevel();

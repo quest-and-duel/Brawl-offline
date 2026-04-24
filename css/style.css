@@ -60,26 +60,86 @@ body {
   user-select: none;
 }
 
-@media (max-width: 700px) {
+/* ── Мобильный портрет: авто-поворот в ландшафт ─────────────────────────── */
+@media (orientation: portrait) and (pointer: coarse) {
+  html, body {
+    overflow: hidden;
+    height: 100%;
+    width: 100%;
+  }
   body {
+    position: fixed;
+    /* Размеры меняем местами: ширина = высота экрана, высота = ширина экрана */
+    width: 100dvh;
+    height: 100dvw;
+    top: 0;
+    left: 0;
+    transform-origin: top left;
+    /* Поворот по часовой + сдвиг чтобы попасть в viewport */
+    transform: rotate(90deg) translateY(-100%);
+    overflow: hidden;
+    /* Внутренний layout — как в ландшафте */
+    display: flex;
+    flex-direction: column;
+    padding: 6px;
+    box-sizing: border-box;
+    max-width: none;
+    margin: 0;
+  }
+  .wrap {
+    all: unset;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    overflow: hidden;
+  }
+  .hud {
+    margin-bottom: 4px;
+    flex-shrink: 0;
+  }
+  .sub    { display: none; }
+  .title  { font-size: 0.95rem; margin: 0 0 2px; }
+  .stats  { font-size: 0.78rem; gap: 4px 10px; margin-bottom: 0; }
+  #game   {
+    flex: 1;
+    width: 100%;
+    max-width: none;
+    height: auto;
+    min-height: 0;
+    border-radius: 8px;
+    object-fit: contain;
+  }
+}
+
+/* ── Мобильный ландшафт ──────────────────────────────────────────────────── */
+@media (orientation: landscape) and (pointer: coarse) {
+  html, body {
     overflow: hidden;
     height: 100dvh;
   }
   .wrap {
-    padding: 6px;
+    display: flex;
+    flex-direction: column;
+    height: 100dvh;
+    max-width: 100%;
+    padding: 4px 8px;
+    box-sizing: border-box;
+    margin: 0;
   }
-  .sub {
-    display: none;
-  }
-  .title {
-    font-size: 1rem;
-  }
-  .stats {
-    font-size: 0.8rem;
-    gap: 6px 12px;
-    margin-bottom: 4px;
-  }
-  #game {
+  .hud   { margin-bottom: 4px; flex-shrink: 0; }
+  .sub   { display: none; }
+  .title { font-size: 0.9rem; margin: 0 0 2px; }
+  .stats { font-size: 0.78rem; gap: 4px 10px; margin-bottom: 0; }
+  #game  {
+    flex: 1;
+    width: 100%;
+    max-width: none;
+    height: 0;   /* flex управляет высотой */
+    min-height: 0;
     border-radius: 8px;
+    object-fit: contain;
   }
 }
