@@ -19,6 +19,39 @@ let mouseY = H / 2;
 let mouseLeftHeld = false;
 let mouseRightHeld = false;
 
+// ── Мобильное управление ──────────────────────────────────────────────────────
+const isMobile = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
+
+/** Виртуальный джойстик (левая сторона экрана) */
+const mJoy = { active: false, id: -1, baseX: 0, baseY: 0, dx: 0, dy: 0 };
+/** Прицел / стрельба (правая сторона) */
+const mAim = { active: false, id: -1, x: 0, y: 0 };
+
+/** Кнопки HUD на мобильном: { id, label, x, y, r, action } */
+const MOB_BTN_R = 36;
+let mobBtns = [];  // инициализируются в buildMobBtns() при каждом resize/loadLevel
+
+function buildMobBtns() {
+  // Кнопки рисуются поверх canvas в draw()
+  // Координаты — в пространстве canvas (не CSS)
+  mobBtns = [
+    { id: "menu",   label: "M",  ax: W - 52,      ay: 52,      r: MOB_BTN_R },
+    { id: "wpnL",   label: "◀", ax: 52,           ay: H - 52,  r: MOB_BTN_R },
+    { id: "wpnR",   label: "▶", ax: 52 + MOB_BTN_R * 2 + 12, ay: H - 52, r: MOB_BTN_R },
+  ];
+}
+
+function scaledTouch(touch) {
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width  / Math.max(1, rect.width);
+  const scaleY = canvas.height / Math.max(1, rect.height);
+  return {
+    x: (touch.clientX - rect.left) * scaleX,
+    y: (touch.clientY - rect.top)  * scaleY,
+  };
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 const STATE = {
   MENU: "menu",
   PLAYING: "playing",
@@ -369,6 +402,7 @@ function showMenu() {
   canvas.height = 540;
   W = 960;
   H = 540;
+  if (isMobile) buildMobBtns();
 }
 
 function newGame() {
@@ -475,6 +509,7 @@ function loadLevel(idx) {
 
   walls = L.walls.map((w) => ({ ...w }));
   bgCanvas = buildBackground(W, H, walls);
+  if (isMobile) buildMobBtns();
 
   player.x = L.spawn.rx * W;
   player.y = L.spawn.ry * H;
@@ -1132,11 +1167,10 @@ function update(dt) {
   if (keys.has("KeyS")) my += 1;
   if (keys.has("KeyA")) mx -= 1;
   if (keys.has("KeyD")) mx += 1;
+  // Мобильный джойстик
+  if (isMobile && mJoy.active) { mx += mJoy.dx; my += mJoy.dy; }
   const len = Math.hypot(mx, my);
-  if (len > 0) {
-    mx /= len;
-    my /= len;
-  }
+  if (len > 0) { mx /= len; my /= len; }
   moveEntity(player, mx * PLAYER.speed * dt, my * PLAYER.speed * dt, PLAYER.r);
 
   const aim = Math.atan2(mouseY - player.y, mouseX - player.x);
@@ -1531,6 +1565,72 @@ function drawMenu() {
   ctx.textBaseline = "alphabetic";
 }
 
+function drawMobileControls() {
+  if (!isMobile || state !== STATE.PLAYING) return;
+  ctx.save();
+
+  // ── Джойстик (левая сторона) ─────────────────────────
+  const jbx = mJoy.active ? mJoy.baseX : W * 0.18;
+  const jby = mJoy.active ? mJoy.baseY : H * 0.78;
+  const JOY_MAX = 70;
+
+  // Основа
+  ctx.beginPath();
+  ctx.arc(jbx, jby, JOY_MAX, 0, Math.PI * 2);
+  ctx.fillStyle = "rgba(255,255,255,0.07)";
+  ctx.fill();
+  ctx.strokeStyle = "rgba(255,255,255,0.18)";
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // Стик
+  const stx = jbx + mJoy.dx * JOY_MAX;
+  const sty = jby + mJoy.dy * JOY_MAX;
+  ctx.beginPath();
+  ctx.arc(stx, sty, 32, 0, Math.PI * 2);
+  ctx.fillStyle = mJoy.active ? "rgba(125,211,252,0.55)" : "rgba(255,255,255,0.18)";
+  ctx.fill();
+  ctx.strokeStyle = "rgba(255,255,255,0.3)";
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // ── Зона прицела (правая сторона) ────────────────────
+  if (mAim.active) {
+    ctx.beginPath();
+    ctx.arc(mAim.x, mAim.y, 40, 0, Math.PI * 2);
+    ctx.strokeStyle = "rgba(251,191,36,0.5)";
+    ctx.lineWidth = 3;
+    ctx.stroke();
+    // Крестик
+    ctx.strokeStyle = "rgba(251,191,36,0.7)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(mAim.x - 12, mAim.y); ctx.lineTo(mAim.x + 12, mAim.y);
+    ctx.moveTo(mAim.x, mAim.y - 12); ctx.lineTo(mAim.x, mAim.y + 12);
+    ctx.stroke();
+  }
+
+  // ── Кнопки HUD ───────────────────────────────────────
+  for (const btn of mobBtns) {
+    ctx.beginPath();
+    ctx.arc(btn.ax, btn.ay, btn.r, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(30,50,80,0.72)";
+    ctx.fill();
+    ctx.strokeStyle = "rgba(125,211,252,0.4)";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.fillStyle = "#e2e8f0";
+    ctx.font = `bold 18px ${EMOJI_FONT}`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(btn.label, btn.ax, btn.ay);
+  }
+
+  ctx.textAlign = "left";
+  ctx.textBaseline = "alphabetic";
+  ctx.restore();
+}
+
 function draw() {
   if (state === STATE.MENU) {
     drawMenu();
@@ -1700,6 +1800,8 @@ function draw() {
     ctx.fillText(hint, W / 2, H / 2 + 28);
     ctx.textAlign = "left";
   }
+
+  drawMobileControls();
 }
 
 function getAvailableUpgrades() {
@@ -1843,6 +1945,119 @@ canvas.addEventListener("mouseleave", () => {
 });
 
 canvas.addEventListener("contextmenu", (e) => e.preventDefault());
+
+// ── Touch события (мобильное управление) ────────────────────────────────────
+if (isMobile) {
+  const JOY_MAX = 70; // максимальный радиус отклонения стика
+
+  function handleMobBtn(cx, cy) {
+    for (const btn of mobBtns) {
+      const dx = cx - btn.ax, dy = cy - btn.ay;
+      if (dx * dx + dy * dy <= btn.r * btn.r) {
+        if (btn.id === "menu")  { showMenu(); return true; }
+        if (btn.id === "wpnL")  { cyclePlayerWeapon(-1); return true; }
+        if (btn.id === "wpnR")  { cyclePlayerWeapon(1);  return true; }
+      }
+    }
+    return false;
+  }
+
+  // Меню по тапу — клик по уровню
+  canvas.addEventListener("touchstart", (e) => {
+    e.preventDefault();
+    if (state === STATE.MENU) {
+      const t = e.changedTouches[0];
+      const { x, y } = scaledTouch(t);
+      mouseX = x; mouseY = y;
+      // ищем карточку уровня
+      const cardW = 264, cardH = 170, cols = 3, gapX = 20, gapY = 18;
+      const totalW = cols * cardW + (cols - 1) * gapX;
+      const startX = (W - totalW) / 2;
+      const startY = 110;
+      for (let i = 0; i < LEVELS.length; i++) {
+        const col = i % cols, row = Math.floor(i / cols);
+        const cx = startX + col * (cardW + gapX);
+        const cy = startY + row * (cardH + gapY);
+        if (x >= cx && x <= cx + cardW && y >= cy && y <= cy + cardH) {
+          startFromLevel(i);
+          return;
+        }
+      }
+      return;
+    }
+    if (state !== STATE.PLAYING) return;
+    for (const touch of e.changedTouches) {
+      const { x, y } = scaledTouch(touch);
+      // Кнопки HUD
+      if (handleMobBtn(x, y)) continue;
+      if (x < W / 2) {
+        // Джойстик
+        if (!mJoy.active) {
+          mJoy.active = true;
+          mJoy.id = touch.identifier;
+          mJoy.baseX = x;
+          mJoy.baseY = y;
+          mJoy.dx = 0;
+          mJoy.dy = 0;
+        }
+      } else {
+        // Прицел + стрельба
+        if (!mAim.active) {
+          mAim.active = true;
+          mAim.id = touch.identifier;
+          mAim.x = x;
+          mAim.y = y;
+          mouseX = x;
+          mouseY = y;
+          mouseLeftHeld = true;
+        }
+      }
+    }
+  }, { passive: false });
+
+  canvas.addEventListener("touchmove", (e) => {
+    e.preventDefault();
+    if (state !== STATE.PLAYING) return;
+    for (const touch of e.changedTouches) {
+      const { x, y } = scaledTouch(touch);
+      if (mJoy.active && touch.identifier === mJoy.id) {
+        let dx = x - mJoy.baseX;
+        let dy = y - mJoy.baseY;
+        const len = Math.hypot(dx, dy);
+        if (len > JOY_MAX) { dx = dx / len * JOY_MAX; dy = dy / len * JOY_MAX; }
+        mJoy.dx = dx / JOY_MAX;
+        mJoy.dy = dy / JOY_MAX;
+      }
+      if (mAim.active && touch.identifier === mAim.id) {
+        mAim.x = x;
+        mAim.y = y;
+        mouseX = x;
+        mouseY = y;
+      }
+    }
+  }, { passive: false });
+
+  function touchEnd(e) {
+    e.preventDefault();
+    for (const touch of e.changedTouches) {
+      if (mJoy.active && touch.identifier === mJoy.id) {
+        mJoy.active = false;
+        mJoy.dx = 0;
+        mJoy.dy = 0;
+      }
+      if (mAim.active && touch.identifier === mAim.id) {
+        mAim.active = false;
+        mouseLeftHeld = false;
+      }
+    }
+  }
+  canvas.addEventListener("touchend",    touchEnd, { passive: false });
+  canvas.addEventListener("touchcancel", touchEnd, { passive: false });
+
+  // Запрет прокрутки страницы при игре
+  document.body.addEventListener("touchmove", (e) => e.preventDefault(), { passive: false });
+}
+// ─────────────────────────────────────────────────────────────────────────────
 
 newGame();
 canvas.focus();

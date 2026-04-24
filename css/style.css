@@ -55,4 +55,31 @@ body {
   background: #1a2332;
   outline: none;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+@media (max-width: 700px) {
+  body {
+    overflow: hidden;
+    height: 100dvh;
+  }
+  .wrap {
+    padding: 6px;
+  }
+  .sub {
+    display: none;
+  }
+  .title {
+    font-size: 1rem;
+  }
+  .stats {
+    font-size: 0.8rem;
+    gap: 6px 12px;
+    margin-bottom: 4px;
+  }
+  #game {
+    border-radius: 8px;
+  }
 }
