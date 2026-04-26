@@ -44,8 +44,24 @@ function buildMobBtns() {
   ];
 }
 
+// Кешируем медиа-запрос — проверяется при каждом тач-событии
+const _portraitRotatedMQ = window.matchMedia('(orientation: portrait) and (pointer: coarse)');
+
 function scaledTouch(touch) {
   const rect = canvas.getBoundingClientRect();
+
+  if (_portraitRotatedMQ.matches) {
+    // CSS вращает body на 90° CW через rotate(90deg) translateY(-100%).
+    // После поворота rect.width ≈ высота canvas на экране, rect.height ≈ ширина.
+    // Визуальная ось X соответствует физической Y, ось Y — инвертированной физической X.
+    const scaleX = canvas.width  / Math.max(1, rect.height);
+    const scaleY = canvas.height / Math.max(1, rect.width);
+    return {
+      x: (touch.clientY - rect.top)   * scaleX,
+      y: (rect.right - touch.clientX) * scaleY,
+    };
+  }
+
   const scaleX = canvas.width  / Math.max(1, rect.width);
   const scaleY = canvas.height / Math.max(1, rect.height);
   return {
