@@ -9,8 +9,12 @@ const elHp = document.getElementById("hp");
 const elBots = document.getElementById("bots");
 const elState = document.getElementById("state");
 
-let W = canvas.width;
-let H = canvas.height;
+/** Фиксированный размер вьюпорта (пиксели canvas). Мир (W×H) может быть больше. */
+const VW = 960, VH = 540;
+let W = VW;  // ширина мира текущего уровня
+let H = VH;  // высота мира
+/** Позиция камеры (верхний-левый угол видимой области в мировых координатах) */
+let camX = 0, camY = 0;
 
 const keys = new Set();
 let mouseX = W / 2;
@@ -22,22 +26,21 @@ let mouseRightHeld = false;
 // ── Мобильное управление ──────────────────────────────────────────────────────
 const isMobile = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
 
-/** Виртуальный джойстик (левая сторона экрана) */
-const mJoy = { active: false, id: -1, baseX: 0, baseY: 0, dx: 0, dy: 0 };
-/** Прицел / стрельба (правая сторона) */
-const mAim = { active: false, id: -1, x: 0, y: 0 };
+/** Виртуальный джойстик движения (левая сторона экрана) */
+const mJoy    = { active: false, id: -1, baseX: 0, baseY: 0, dx: 0, dy: 0 };
+/** Виртуальный джойстик прицела (правая сторона экрана) */
+const mAimJoy = { active: false, id: -1, baseX: 0, baseY: 0, dx: 0, dy: 0 };
 
 /** Кнопки HUD на мобильном: { id, label, x, y, r, action } */
 const MOB_BTN_R = 36;
 let mobBtns = [];  // инициализируются в buildMobBtns() при каждом resize/loadLevel
 
 function buildMobBtns() {
-  // Кнопки рисуются поверх canvas в draw()
-  // Координаты — в пространстве canvas (не CSS)
+  // Координаты — в пространстве canvas (VW×VH), не в мировых
   mobBtns = [
-    { id: "menu",   label: "M",  ax: W - 52,      ay: 52,      r: MOB_BTN_R },
-    { id: "wpnL",   label: "◀", ax: 52,           ay: H - 52,  r: MOB_BTN_R },
-    { id: "wpnR",   label: "▶", ax: 52 + MOB_BTN_R * 2 + 12, ay: H - 52, r: MOB_BTN_R },
+    { id: "menu",   label: "M",  ax: VW - 52,                   ay: 52,      r: MOB_BTN_R },
+    { id: "wpnL",   label: "◀", ax: 52,                         ay: VH - 52, r: MOB_BTN_R },
+    { id: "wpnR",   label: "▶", ax: 52 + MOB_BTN_R * 2 + 12,   ay: VH - 52, r: MOB_BTN_R },
   ];
 }
 
@@ -398,10 +401,10 @@ function circleHitsWall(cx, cy, cr, w) {
 
 function showMenu() {
   state = STATE.MENU;
-  canvas.width = 960;
-  canvas.height = 540;
-  W = 960;
-  H = 540;
+  canvas.width = VW;
+  canvas.height = VH;
+  W = VW; H = VH;
+  camX = 0; camY = 0;
   if (isMobile) buildMobBtns();
 }
 
@@ -502,10 +505,12 @@ function loadLevel(idx) {
   bossSummonTimer = 0;
 
   const L = LEVELS[idx];
-  canvas.width = L.w;
-  canvas.height = L.h;
+  // Canvas всегда = VW×VH; W/H — размер мира уровня
+  canvas.width = VW;
+  canvas.height = VH;
   W = L.w;
   H = L.h;
+  camX = 0; camY = 0;
 
   walls = L.walls.map((w) => ({ ...w }));
   bgCanvas = buildBackground(W, H, walls);
@@ -1153,6 +1158,11 @@ function bossSummon() {
   spawnFloater(W / 2, 40, "Босс призывает подмогу!", "#fbbf24");
 }
 
+function updateCamera() {
+  camX = Math.round(Math.max(0, Math.min(W - VW, player.x - VW / 2)));
+  camY = Math.round(Math.max(0, Math.min(H - VH, player.y - VH / 2)));
+}
+
 function update(dt) {
   if (state === STATE.MENU) return;
   time += dt;
@@ -1167,11 +1177,24 @@ function update(dt) {
   if (keys.has("KeyS")) my += 1;
   if (keys.has("KeyA")) mx -= 1;
   if (keys.has("KeyD")) mx += 1;
-  // Мобильный джойстик
+  // Мобильный джойстик движения
   if (isMobile && mJoy.active) { mx += mJoy.dx; my += mJoy.dy; }
   const len = Math.hypot(mx, my);
   if (len > 0) { mx /= len; my /= len; }
   moveEntity(player, mx * PLAYER.speed * dt, my * PLAYER.speed * dt, PLAYER.r);
+
+  // Правый джойстик прицела: направление = угол стрельбы, авто-огонь
+  if (isMobile && mAimJoy.active) {
+    const jl = Math.hypot(mAimJoy.dx, mAimJoy.dy);
+    if (jl > 0.2) {
+      const ang = Math.atan2(mAimJoy.dy, mAimJoy.dx);
+      mouseX = player.x + Math.cos(ang) * 800;  // мировые координаты
+      mouseY = player.y + Math.sin(ang) * 800;
+      mouseLeftHeld = true;
+    } else {
+      mouseLeftHeld = false;
+    }
+  }
 
   const aim = Math.atan2(mouseY - player.y, mouseX - player.x);
   player.cd -= dt;
@@ -1345,6 +1368,7 @@ function update(dt) {
   }
 
   updateHud();
+  if (state === STATE.PLAYING) updateCamera();
 }
 
 const EMOJI_FONT = '"Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",system-ui,sans-serif';
@@ -1412,14 +1436,14 @@ function drawPickup(p) {
 
 function drawChoiceOverlay() {
   ctx.fillStyle = "rgba(0,0,0,0.68)";
-  ctx.fillRect(0, 0, W, H);
+  ctx.fillRect(0, 0, VW, VH);
   ctx.fillStyle = "#f8fafc";
   ctx.font = `bold 28px ${EMOJI_FONT}`;
   ctx.textAlign = "center";
-  ctx.fillText(`Уровень ${currentLevel + 1} пройден`, W / 2, 60);
+  ctx.fillText(`Уровень ${currentLevel + 1} пройден`, VW / 2, 60);
   ctx.font = `16px ${EMOJI_FONT}`;
   ctx.fillStyle = "#cbd5e1";
-  ctx.fillText("Выберите награду (1 / 2 / 3 / 4)", W / 2, 88);
+  ctx.fillText(isMobile ? "Тапни на карточку" : "Выберите награду (1 / 2 / 3 / 4)", VW / 2, 88);
 
   const options = getAvailableUpgrades();
   const COLS = 2;
@@ -1429,14 +1453,14 @@ function drawChoiceOverlay() {
   const gapY = 14;
   const rows = Math.ceil(options.length / COLS);
   const totalGridH = rows * cardH + (rows - 1) * gapY;
-  const gridTop = H / 2 - totalGridH / 2 + 10;
+  const gridTop = VH / 2 - totalGridH / 2 + 10;
 
   options.forEach((u, i) => {
     const col = i % COLS;
     const row = Math.floor(i / COLS);
     const rowCount = Math.min(COLS, options.length - row * COLS);
     const rowW = rowCount * cardW + (rowCount - 1) * gapX;
-    const rowStartX = (W - rowW) / 2;
+    const rowStartX = (VW - rowW) / 2;
     const x = rowStartX + col * (cardW + gapX);
     const y = gridTop + row * (cardH + gapY);
 
@@ -1466,7 +1490,7 @@ function drawChoiceOverlay() {
   if (options.length === 0) {
     ctx.fillStyle = "#cbd5e1";
     ctx.font = `18px ${EMOJI_FONT}`;
-    ctx.fillText("Все награды получены — Space для следующего уровня", W / 2, H / 2);
+    ctx.fillText("Все награды получены — Space для следующего уровня", VW / 2, VH / 2);
   }
   ctx.textAlign = "left";
 }
@@ -1511,15 +1535,17 @@ function drawMenu() {
   ctx.fillStyle = "#64748b";
   ctx.fillText("Кликни на карточку или нажми 1–6", W / 2, 82);
 
-  const cardW = 264;
-  const cardH = 170;
-  const cols = 3;
-  const rows = 2;
-  const gapX = 20;
-  const gapY = 18;
+  // Адаптивный размер карточек под текущий VW/VH
+  const cols = isMobile && VW < 700 ? 2 : 3;
+  const cardW = Math.floor((VW * 0.92 - (cols - 1) * 16) / cols);
+  const cardH = Math.floor(VH * 0.34);
+  const gapX = 16;
+  const gapY = Math.floor(VH * 0.03);
   const totalW = cols * cardW + (cols - 1) * gapX;
-  const startX = (W - totalW) / 2;
-  const startY = 110;
+  const startX = (VW - totalW) / 2;
+  const rows = Math.ceil(LEVELS.length / cols);
+  const totalGridH = rows * cardH + (rows - 1) * gapY;
+  const startY = Math.floor((VH - totalGridH) / 2 - 10);
 
   for (let i = 0; i < LEVELS.length; i++) {
     const L = LEVELS[i];
@@ -1578,52 +1604,41 @@ function drawMenu() {
   ctx.textBaseline = "alphabetic";
 }
 
+function drawJoystick(baseX, baseY, dx, dy, active, color) {
+  const JR = 64;
+  ctx.beginPath();
+  ctx.arc(baseX, baseY, JR, 0, Math.PI * 2);
+  ctx.fillStyle = "rgba(255,255,255,0.06)";
+  ctx.fill();
+  ctx.strokeStyle = "rgba(255,255,255,0.15)";
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(baseX + dx * JR, baseY + dy * JR, 28, 0, Math.PI * 2);
+  ctx.fillStyle = active ? color : "rgba(255,255,255,0.14)";
+  ctx.fill();
+  ctx.strokeStyle = "rgba(255,255,255,0.25)";
+  ctx.lineWidth = 2;
+  ctx.stroke();
+}
+
 function drawMobileControls() {
   if (!isMobile || state !== STATE.PLAYING) return;
   ctx.save();
 
-  // ── Джойстик (левая сторона) ─────────────────────────
-  const jbx = mJoy.active ? mJoy.baseX : W * 0.18;
-  const jby = mJoy.active ? mJoy.baseY : H * 0.78;
-  const JOY_MAX = 70;
+  // Левый джойстик — движение
+  drawJoystick(
+    mJoy.active ? mJoy.baseX : VW * 0.15, mJoy.active ? mJoy.baseY : VH * 0.78,
+    mJoy.dx, mJoy.dy, mJoy.active, "rgba(125,211,252,0.55)"
+  );
 
-  // Основа
-  ctx.beginPath();
-  ctx.arc(jbx, jby, JOY_MAX, 0, Math.PI * 2);
-  ctx.fillStyle = "rgba(255,255,255,0.07)";
-  ctx.fill();
-  ctx.strokeStyle = "rgba(255,255,255,0.18)";
-  ctx.lineWidth = 2;
-  ctx.stroke();
+  // Правый джойстик — прицел/стрельба
+  drawJoystick(
+    mAimJoy.active ? mAimJoy.baseX : VW * 0.85, mAimJoy.active ? mAimJoy.baseY : VH * 0.78,
+    mAimJoy.dx, mAimJoy.dy, mAimJoy.active, "rgba(251,191,36,0.6)"
+  );
 
-  // Стик
-  const stx = jbx + mJoy.dx * JOY_MAX;
-  const sty = jby + mJoy.dy * JOY_MAX;
-  ctx.beginPath();
-  ctx.arc(stx, sty, 32, 0, Math.PI * 2);
-  ctx.fillStyle = mJoy.active ? "rgba(125,211,252,0.55)" : "rgba(255,255,255,0.18)";
-  ctx.fill();
-  ctx.strokeStyle = "rgba(255,255,255,0.3)";
-  ctx.lineWidth = 2;
-  ctx.stroke();
-
-  // ── Зона прицела (правая сторона) ────────────────────
-  if (mAim.active) {
-    ctx.beginPath();
-    ctx.arc(mAim.x, mAim.y, 40, 0, Math.PI * 2);
-    ctx.strokeStyle = "rgba(251,191,36,0.5)";
-    ctx.lineWidth = 3;
-    ctx.stroke();
-    // Крестик
-    ctx.strokeStyle = "rgba(251,191,36,0.7)";
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(mAim.x - 12, mAim.y); ctx.lineTo(mAim.x + 12, mAim.y);
-    ctx.moveTo(mAim.x, mAim.y - 12); ctx.lineTo(mAim.x, mAim.y + 12);
-    ctx.stroke();
-  }
-
-  // ── Кнопки HUD ───────────────────────────────────────
+  // Кнопки HUD
   for (const btn of mobBtns) {
     ctx.beginPath();
     ctx.arc(btn.ax, btn.ay, btn.r, 0, Math.PI * 2);
@@ -1645,17 +1660,18 @@ function drawMobileControls() {
 }
 
 function draw() {
-  if (state === STATE.MENU) {
-    drawMenu();
-    return;
-  }
+  if (state === STATE.MENU) { drawMenu(); return; }
   _drawEmojiFontPx = -1;
-  if (bgCanvas) {
-    ctx.drawImage(bgCanvas, 0, 0);
-  } else {
-    ctx.fillStyle = "#1a2332";
-    ctx.fillRect(0, 0, W, H);
-  }
+
+  // Очищаем вьюпорт
+  ctx.fillStyle = "#1a2332";
+  ctx.fillRect(0, 0, VW, VH);
+
+  // ── Мировые объекты (под камерой) ───────────────────────────────────────────
+  ctx.save();
+  ctx.translate(-camX, -camY);
+
+  if (bgCanvas) ctx.drawImage(bgCanvas, 0, 0);
 
   for (const p of pickups) drawPickup(p);
 
@@ -1696,10 +1712,7 @@ function draw() {
     ctx.moveTo(bullet.x + rr, bullet.y);
     ctx.arc(bullet.x, bullet.y, rr, 0, Math.PI * 2);
   }
-  if (bullets.some((b) => b.magicBlast)) {
-    ctx.fillStyle = "#a78bfa";
-    ctx.fill();
-  }
+  if (bullets.some((b) => b.magicBlast)) { ctx.fillStyle = "#a78bfa"; ctx.fill(); }
   ctx.beginPath();
   for (const bullet of bullets) {
     if (bullet.magicBlast || bullet.owner !== "player") continue;
@@ -1707,13 +1720,7 @@ function draw() {
     ctx.moveTo(bullet.x + rr, bullet.y);
     ctx.arc(bullet.x, bullet.y, rr, 0, Math.PI * 2);
   }
-  {
-    const has = bullets.some((b) => !b.magicBlast && b.owner === "player");
-    if (has) {
-      ctx.fillStyle = "#fde047";
-      ctx.fill();
-    }
-  }
+  if (bullets.some((b) => !b.magicBlast && b.owner === "player")) { ctx.fillStyle = "#fde047"; ctx.fill(); }
   ctx.beginPath();
   for (const bullet of bullets) {
     if (bullet.magicBlast || bullet.owner === "player") continue;
@@ -1721,13 +1728,7 @@ function draw() {
     ctx.moveTo(bullet.x + rr, bullet.y);
     ctx.arc(bullet.x, bullet.y, rr, 0, Math.PI * 2);
   }
-  {
-    const has = bullets.some((b) => !b.magicBlast && b.owner !== "player");
-    if (has) {
-      ctx.fillStyle = "#fb923c";
-      ctx.fill();
-    }
-  }
+  if (bullets.some((b) => !b.magicBlast && b.owner !== "player")) { ctx.fillStyle = "#fb923c"; ctx.fill(); }
 
   for (const s of slashes) {
     const a = s.life / 0.18;
@@ -1738,7 +1739,6 @@ function draw() {
     ctx.stroke();
   }
 
-  // Частицы: один batched path на цвет (без per-particle globalAlpha — дорогой state change)
   if (particles.length) {
     ctx.globalAlpha = 0.82;
     let curColor = null;
@@ -1769,32 +1769,35 @@ function draw() {
   ctx.globalAlpha = 1;
   ctx.textAlign = "left";
 
+  ctx.restore();
+  // ── Экранное пространство (UI, оверлеи — без камеры) ─────────────────────────
+
   if (hudHasBoss) {
     ctx.fillStyle = "#fbbf24";
     ctx.font = `bold 14px ${EMOJI_FONT}`;
     ctx.textAlign = "center";
-    ctx.fillText(`Призыв босса через ${hudOverlayBossT.toFixed(1)}с`, W / 2, 22);
+    ctx.fillText(`Призыв босса через ${hudOverlayBossT.toFixed(1)}с`, VW / 2, 22);
     ctx.textAlign = "left";
   }
   if (hudHasMage) {
     ctx.fillStyle = "#c4b5fd";
     ctx.font = `bold 14px ${EMOJI_FONT}`;
     ctx.textAlign = "center";
-    ctx.fillText(`Скелеты мага через ${hudOverlayMageT.toFixed(1)}с`, W / 2, hudHasBoss ? 42 : 22);
+    ctx.fillText(`Скелеты мага через ${hudOverlayMageT.toFixed(1)}с`, VW / 2, hudHasBoss ? 42 : 22);
     ctx.textAlign = "left";
   }
 
   if (hurtFlash > 0) {
     const a = Math.min(0.45, hurtFlash) * 0.55;
     ctx.fillStyle = `rgba(239,68,68,${a})`;
-    ctx.fillRect(0, 0, W, H);
+    ctx.fillRect(0, 0, VW, VH);
   }
 
   if (state === STATE.WON) {
     drawChoiceOverlay();
   } else if (state !== STATE.PLAYING) {
     ctx.fillStyle = "rgba(0,0,0,0.5)";
-    ctx.fillRect(0, 0, W, H);
+    ctx.fillRect(0, 0, VW, VH);
     ctx.fillStyle = "#f8fafc";
     ctx.font = `bold 32px ${EMOJI_FONT}`;
     ctx.textAlign = "center";
@@ -1802,15 +1805,15 @@ function draw() {
     let hint = "";
     if (state === STATE.LOST) {
       title = "Поражение";
-      hint = "M — меню уровней  ·  R — заново с начала";
+      hint = isMobile ? "Нажми M для меню" : "M — меню  ·  R — заново";
     } else if (state === STATE.CLEARED) {
       title = "Все уровни пройдены! 🏆";
-      hint = "M — меню уровней  ·  R — заново";
+      hint = isMobile ? "Нажми M для меню" : "M — меню  ·  R — заново";
     }
-    ctx.fillText(title, W / 2, H / 2 - 8);
+    ctx.fillText(title, VW / 2, VH / 2 - 8);
     ctx.font = `18px ${EMOJI_FONT}`;
     ctx.fillStyle = "#cbd5e1";
-    ctx.fillText(hint, W / 2, H / 2 + 28);
+    ctx.fillText(hint, VW / 2, VH / 2 + 28);
     ctx.textAlign = "left";
   }
 
@@ -1904,25 +1907,34 @@ function syncMouseFromEvent(e) {
   const rect = canvas.getBoundingClientRect();
   const rw = Math.max(1, rect.width);
   const rh = Math.max(1, rect.height);
-  const scaleX = canvas.width / rw;
-  const scaleY = canvas.height / rh;
-  mouseX = (e.clientX - rect.left) * scaleX;
-  mouseY = (e.clientY - rect.top) * scaleY;
+  const scaleX = VW / rw;
+  const scaleY = VH / rh;
+  // Переводим в мировые координаты (canvas-пространство + смещение камеры)
+  mouseX = (e.clientX - rect.left) * scaleX + camX;
+  mouseY = (e.clientY - rect.top)  * scaleY + camY;
 }
 
 canvas.addEventListener("mousemove", (e) => {
   syncMouseFromEvent(e);
   if (state === STATE.MENU) {
-    const cardW = 264, cardH = 170, cols = 3, gapX = 20, gapY = 18;
+    // Используем те же параметры что и в drawMenu
+    const cols = isMobile && VW < 700 ? 2 : 3;
+    const cardW = Math.floor((VW * 0.92 - (cols - 1) * 16) / cols);
+    const cardH = Math.floor(VH * 0.34);
+    const gapX = 16, gapY = Math.floor(VH * 0.03);
     const totalW = cols * cardW + (cols - 1) * gapX;
-    const startX = (W - totalW) / 2;
-    const startY = 110;
+    const startX = (VW - totalW) / 2;
+    const rows = Math.ceil(LEVELS.length / cols);
+    const totalGridH = rows * cardH + (rows - 1) * gapY;
+    const startY = Math.floor((VH - totalGridH) / 2 - 10);
     let found = -1;
+    // mouseX/Y в меню = canvas coords (camX=camY=0)
+    const mx = mouseX - camX, my = mouseY - camY;
     for (let i = 0; i < LEVELS.length; i++) {
       const col = i % cols, row = Math.floor(i / cols);
       const cx = startX + col * (cardW + gapX);
       const cy = startY + row * (cardH + gapY);
-      if (mouseX >= cx && mouseX <= cx + cardW && mouseY >= cy && mouseY <= cy + cardH) { found = i; break; }
+      if (mx >= cx && mx <= cx + cardW && my >= cy && my <= cy + cardH) { found = i; break; }
     }
     menuHoverIdx = found;
     canvas.style.cursor = found >= 0 ? "pointer" : "default";
@@ -1975,54 +1987,71 @@ if (isMobile) {
     return false;
   }
 
-  // Меню по тапу — клик по уровню
   canvas.addEventListener("touchstart", (e) => {
     e.preventDefault();
+
+    // ── Меню выбора уровня ───────────────────────────────
     if (state === STATE.MENU) {
-      const t = e.changedTouches[0];
-      const { x, y } = scaledTouch(t);
+      const { x, y } = scaledTouch(e.changedTouches[0]);
       mouseX = x; mouseY = y;
-      // ищем карточку уровня
-      const cardW = 264, cardH = 170, cols = 3, gapX = 20, gapY = 18;
-      const totalW = cols * cardW + (cols - 1) * gapX;
-      const startX = (W - totalW) / 2;
-      const startY = 110;
+      const cols2 = isMobile && VW < 700 ? 2 : 3;
+      const cardW2 = Math.floor((VW * 0.92 - (cols2 - 1) * 16) / cols2);
+      const cardH2 = Math.floor(VH * 0.34);
+      const gapX2 = 16, gapY2 = Math.floor(VH * 0.03);
+      const totalW2 = cols2 * cardW2 + (cols2 - 1) * gapX2;
+      const startX2 = (VW - totalW2) / 2;
+      const rows2 = Math.ceil(LEVELS.length / cols2);
+      const totalGridH2 = rows2 * cardH2 + (rows2 - 1) * gapY2;
+      const startY2 = Math.floor((VH - totalGridH2) / 2 - 10);
       for (let i = 0; i < LEVELS.length; i++) {
-        const col = i % cols, row = Math.floor(i / cols);
-        const cx = startX + col * (cardW + gapX);
-        const cy = startY + row * (cardH + gapY);
+        const col = i % cols2, row = Math.floor(i / cols2);
+        const cx = startX2 + col * (cardW2 + gapX2);
+        const cy = startY2 + row * (cardH2 + gapY2);
+        if (x >= cx && x <= cx + cardW2 && y >= cy && y <= cy + cardH2) { startFromLevel(i); return; }
+      }
+      return;
+    }
+
+    // ── Выбор апгрейда (STATE.WON) ──────────────────────
+    if (state === STATE.WON) {
+      const { x, y } = scaledTouch(e.changedTouches[0]);
+      const opts = getAvailableUpgrades();
+      if (opts.length === 0) { advanceLevel(); return; }
+      const COLS = 2, cardW = 260, cardH = 140, gapX = 20, gapY = 14;
+      const rows = Math.ceil(opts.length / COLS);
+      const totalGridH = rows * cardH + (rows - 1) * gapY;
+      const gridTop = VH / 2 - totalGridH / 2 + 10;
+      for (let i = 0; i < opts.length; i++) {
+        const col = i % COLS, row = Math.floor(i / COLS);
+        const rowCount = Math.min(COLS, opts.length - row * COLS);
+        const rowW = rowCount * cardW + (rowCount - 1) * gapX;
+        const cx = (VW - rowW) / 2 + col * (cardW + gapX);
+        const cy = gridTop + row * (cardH + gapY);
         if (x >= cx && x <= cx + cardW && y >= cy && y <= cy + cardH) {
-          startFromLevel(i);
+          applyUpgrade(opts[i].id);
+          advanceLevel();
           return;
         }
       }
       return;
     }
+
     if (state !== STATE.PLAYING) return;
+
     for (const touch of e.changedTouches) {
       const { x, y } = scaledTouch(touch);
-      // Кнопки HUD
       if (handleMobBtn(x, y)) continue;
-      if (x < W / 2) {
-        // Джойстик
+      if (x < VW / 2) {
+        // Левый джойстик (движение)
         if (!mJoy.active) {
-          mJoy.active = true;
-          mJoy.id = touch.identifier;
-          mJoy.baseX = x;
-          mJoy.baseY = y;
-          mJoy.dx = 0;
-          mJoy.dy = 0;
+          mJoy.active = true; mJoy.id = touch.identifier;
+          mJoy.baseX = x; mJoy.baseY = y; mJoy.dx = 0; mJoy.dy = 0;
         }
       } else {
-        // Прицел + стрельба
-        if (!mAim.active) {
-          mAim.active = true;
-          mAim.id = touch.identifier;
-          mAim.x = x;
-          mAim.y = y;
-          mouseX = x;
-          mouseY = y;
-          mouseLeftHeld = true;
+        // Правый джойстик (прицел)
+        if (!mAimJoy.active) {
+          mAimJoy.active = true; mAimJoy.id = touch.identifier;
+          mAimJoy.baseX = x; mAimJoy.baseY = y; mAimJoy.dx = 0; mAimJoy.dy = 0;
         }
       }
     }
@@ -2034,18 +2063,16 @@ if (isMobile) {
     for (const touch of e.changedTouches) {
       const { x, y } = scaledTouch(touch);
       if (mJoy.active && touch.identifier === mJoy.id) {
-        let dx = x - mJoy.baseX;
-        let dy = y - mJoy.baseY;
-        const len = Math.hypot(dx, dy);
-        if (len > JOY_MAX) { dx = dx / len * JOY_MAX; dy = dy / len * JOY_MAX; }
-        mJoy.dx = dx / JOY_MAX;
-        mJoy.dy = dy / JOY_MAX;
+        let dx = x - mJoy.baseX, dy = y - mJoy.baseY;
+        const l = Math.hypot(dx, dy);
+        if (l > JOY_MAX) { dx = dx / l * JOY_MAX; dy = dy / l * JOY_MAX; }
+        mJoy.dx = dx / JOY_MAX; mJoy.dy = dy / JOY_MAX;
       }
-      if (mAim.active && touch.identifier === mAim.id) {
-        mAim.x = x;
-        mAim.y = y;
-        mouseX = x;
-        mouseY = y;
+      if (mAimJoy.active && touch.identifier === mAimJoy.id) {
+        let dx = x - mAimJoy.baseX, dy = y - mAimJoy.baseY;
+        const l = Math.hypot(dx, dy);
+        if (l > JOY_MAX) { dx = dx / l * JOY_MAX; dy = dy / l * JOY_MAX; }
+        mAimJoy.dx = dx / JOY_MAX; mAimJoy.dy = dy / JOY_MAX;
       }
     }
   }, { passive: false });
@@ -2054,12 +2081,10 @@ if (isMobile) {
     e.preventDefault();
     for (const touch of e.changedTouches) {
       if (mJoy.active && touch.identifier === mJoy.id) {
-        mJoy.active = false;
-        mJoy.dx = 0;
-        mJoy.dy = 0;
+        mJoy.active = false; mJoy.dx = 0; mJoy.dy = 0;
       }
-      if (mAim.active && touch.identifier === mAim.id) {
-        mAim.active = false;
+      if (mAimJoy.active && touch.identifier === mAimJoy.id) {
+        mAimJoy.active = false; mAimJoy.dx = 0; mAimJoy.dy = 0;
         mouseLeftHeld = false;
       }
     }
