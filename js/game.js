@@ -245,8 +245,8 @@ const DOG = {
 };
 
 const UPGRADES = {
-  bonus_hp:  { id: "bonus_hp",  title: "❤️ +50 HP",  desc: "+50 макс. HP и сразу восстанавливает 50 HP" },
-  bonus_dmg: { id: "bonus_dmg", title: "⚔️ +Урон",   desc: "+10 к урону оружия" },
+  bonus_hp:  { id: "bonus_hp",  title: "❤️ +10% HP",   desc: "+10% макс. HP и восстанавливает столько же" },
+  bonus_dmg: { id: "bonus_dmg", title: "⚔️ +10% урон", desc: "Урон оружия постоянно увеличивается на 10%" },
 };
 
 const LEVELS = [
@@ -390,7 +390,14 @@ const LEVELS = [
       { rx: 0.5,  ry: 0.45, kind: "melee" },
     ],
     waves: [
-      { kind: "goblin", every: 3, count: 1, totalCount: 18 },
+      { kind: "goblin", every: 3, count: 1, totalCount: 15,
+        spawnZones: [
+          { x: 60,  y: 60,  w: 280, h: 280 },
+          { x: 660, y: 60,  w: 280, h: 280 },
+          { x: 60,  y: 560, w: 280, h: 280 },
+          { x: 660, y: 560, w: 280, h: 280 },
+        ]
+      },
     ],
     spawn: { rx: 0.5, ry: 0.88 },
     drops: true,
@@ -446,7 +453,13 @@ const LEVELS = [
       { rx: 0.8,  ry: 0.7,  kind: "melee"    },
     ],
     waves: [
-      { kind: "goblin", every: 10, count: 4, totalCount: 24 },
+      { kind: "goblin", every: 10, count: 4, totalCount: 24,
+        spawnZones: [
+          { x: 50,   y: 50,  w: 200, h: 600 },
+          { x: 1150, y: 50,  w: 200, h: 600 },
+          { x: 400,  y: 50,  w: 600, h: 120 },
+        ]
+      },
     ],
     spawn: { rx: 0.5, ry: 0.9 },
     drops: true,
@@ -470,7 +483,7 @@ const LEVELS = [
       { rx: 0.65, ry: 0.35, kind: "ice_golem" },
     ],
     waves: [
-      { kind: "ice_golem", every: 20, count: 3, stopWhenNoKind: "ice_king" },
+      { kind: "ice_golem", every: 20, count: 2, stopWhenNoKind: "ice_king" },
       { kind: "ice_mage",  every: 15, count: 1, stopWhenNoKind: "ice_king" },
       { kind: "melee",     every: 45, count: 3, stopWhenNoKind: "ice_king" },
       { kind: "ranger",    every: 45, count: 3, stopWhenNoKind: "ice_king" },
@@ -565,6 +578,7 @@ function startFromLevel(idx) {
     hp: PLAYER.maxHp,
     maxHp: PLAYER.maxHp,
     damageBonus: 0,
+    damageMul: 1.0,
     cd: 0,
     sinceHit: 999,
     hitFlash: 0,
@@ -888,7 +902,7 @@ function botThink(b, dt) {
       const ty = usePlayer ? player.y : dog.y;
       const ang = Math.atan2(ty - b.y, tx - b.x);
       if (t.kind === "mage") tryMageBlast(b, ang, t);
-      else if (t.kind === "ice_mage") tryFire(b, ang, t, "bot", 0, { slow: true, slowDuration: 3, iceBullet: true });
+      else if (t.kind === "ice_mage") tryFire(b, ang, t, "bot", 0, { slow: true, slowDuration: 2, iceBullet: true });
       else tryFire(b, ang, t, "bot");
     }
     return;
@@ -1073,15 +1087,26 @@ function iceKingSummonMage(ik) {
   spawnFloater(ik.x, ik.y - ik.type.r - 20, "Ледяной Маг!", "#38bdf8");
 }
 
-function spawnWaveBots(kind, count) {
+function spawnWaveBots(kind, count, spawnZones) {
   for (let i = 0; i < count; i++) {
     let sx = 0, sy = 0;
-    for (let attempt = 0; attempt < 25; attempt++) {
-      sx = Math.random() * (W - 100) + 50;
-      sy = Math.random() * (H - 100) + 50;
-      const cx = W / 2, cy = H / 2;
-      if (Math.hypot(sx - cx, sy - cy) > Math.min(W, H) * 0.28 &&
-          Math.hypot(sx - player.x, sy - player.y) > 220) break;
+    if (spawnZones && spawnZones.length > 0) {
+      for (let attempt = 0; attempt < 30; attempt++) {
+        const zone = spawnZones[Math.floor(Math.random() * spawnZones.length)];
+        sx = zone.x + Math.random() * zone.w;
+        sy = zone.y + Math.random() * zone.h;
+        sx = Math.max(20, Math.min(W - 20, sx));
+        sy = Math.max(20, Math.min(H - 20, sy));
+        if (Math.hypot(sx - player.x, sy - player.y) > 150) break;
+      }
+    } else {
+      for (let attempt = 0; attempt < 25; attempt++) {
+        sx = Math.random() * (W - 100) + 50;
+        sy = Math.random() * (H - 100) + 50;
+        const cx = W / 2, cy = H / 2;
+        if (Math.hypot(sx - cx, sy - cy) > Math.min(W, H) * 0.28 &&
+            Math.hypot(sx - player.x, sy - player.y) > 220) break;
+      }
     }
     const b = makeBot(sx, sy, kind);
     resolveWalls(b, b.type.r);
@@ -1107,9 +1132,10 @@ function playerAttack(angle) {
   if (!wp || player.reloading || player.cd > 0) return;
   player.cd = wp.fireCd;
 
+  const mul = player.damageMul || 1;
   const baseDmg = wp.melee
-    ? (wp.baseDamage || 50) + player.damageBonus
-    : (wp.baseDamage || 22) + player.damageBonus * 0.5;
+    ? ((wp.baseDamage || 50) + player.damageBonus) * mul
+    : ((wp.baseDamage || 22) + player.damageBonus * 0.5) * mul;
 
   if (wp.melee) {
     slashes.push({ x: player.x, y: player.y, ang: angle, life: 0.2, r: wp.meleeRange });
@@ -1193,8 +1219,8 @@ function spawnFloater(x, y, text, color) {
 }
 
 const PICKUP_TYPES = {
-  damage: { color: "#fb923c", label: "+урон", dmg: 4, hp: 0,  mhp: 0  },
-  health: { color: "#22c55e", label: "+HP",   dmg: 0, hp: 25, mhp: 20 },
+  damage: { color: "#fb923c", label: "+урон", dmg: 6,  hp: 0,  mhp: 0  },
+  health: { color: "#22c55e", label: "+HP",   dmg: 0,  hp: 38, mhp: 30 },
 };
 
 function maybeDropPickup(x, y) {
@@ -1305,7 +1331,7 @@ function update(dt) {
 
   const wp = WEAPONS[player.weapon];
   const reloadBonus = player.reloading && wp?.reloadSpeedBonus ? wp.reloadSpeedBonus : 1;
-  const slowMul = player.slowLeft > 0 ? 0.4 : 1;
+  const slowMul = player.slowLeft > 0 ? 0.6 : 1;
   moveEntity(player, mx * PLAYER.speed * slowMul * reloadBonus * dt, my * PLAYER.speed * slowMul * reloadBonus * dt, PLAYER.r);
 
   // ── Прицел и огонь ────────────────────────────────────────────────────────
@@ -1341,7 +1367,7 @@ function update(dt) {
       w.timer -= dt;
       if (w.timer <= 0) {
         w.timer = w.every;
-        spawnWaveBots(w.kind, w.count || 1);
+        spawnWaveBots(w.kind, w.count || 1, w.spawnZones);
         w.spawned += (w.count || 1);
       }
     }
@@ -1375,7 +1401,7 @@ function update(dt) {
       const pR2 = (PLAYER.r + br) * (PLAYER.r + br);
       if (dist2(bullet.x, bullet.y, player.x, player.y) < pR2) {
         damagePlayer(bullet.damage);
-        if (bullet.slow) player.slowLeft = Math.max(player.slowLeft, bullet.slowDuration || 3);
+        if (bullet.slow) player.slowLeft = Math.max(player.slowLeft, bullet.slowDuration || 2);
         bullet.life = 0;
         continue;
       }
@@ -1605,6 +1631,16 @@ function drawMenu() {
   ctx.font = `bold 34px ${EMOJI_FONT}`;
   ctx.textAlign = "center"; ctx.textBaseline = "middle";
   ctx.fillText("⚔️  Выбор уровня", W / 2, 44);
+
+  // Кнопка «← Герой» (верхний левый угол)
+  const _hBtnX = 14, _hBtnY = 10, _hBtnW = 130, _hBtnH = 34;
+  ctx.fillStyle = "#1e3a5f";
+  ctx.beginPath(); ctx.roundRect(_hBtnX, _hBtnY, _hBtnW, _hBtnH, 7); ctx.fill();
+  ctx.strokeStyle = "#38bdf8"; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.roundRect(_hBtnX, _hBtnY, _hBtnW, _hBtnH, 7); ctx.stroke();
+  ctx.fillStyle = "#e0f2fe"; ctx.font = `bold 16px ${EMOJI_FONT}`;
+  ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  ctx.fillText("← Герой", _hBtnX + _hBtnW / 2, _hBtnY + _hBtnH / 2);
   ctx.font = `14px ${EMOJI_FONT}`;
   ctx.fillStyle = "#64748b";
   const ch = CHARACTERS[selectedChar];
@@ -1987,7 +2023,7 @@ function draw() {
     let title = "", hint = "";
     if (state === STATE.LOST) {
       title = "Поражение";
-      hint = isMobile ? "Нажми M для меню" : "M — меню  ·  R — заново";
+      hint = isMobile ? "" : "R — повтор уровня  ·  M — меню";
     } else if (state === STATE.CLEARED) {
       title = "Все уровни пройдены! 🏆";
       hint = isMobile ? "Нажми M для меню" : "M — меню  ·  R — заново";
@@ -1996,6 +2032,29 @@ function draw() {
     ctx.font = `18px ${EMOJI_FONT}`; ctx.fillStyle = "#cbd5e1";
     ctx.fillText(hint, VW / 2, VH / 2 + 28);
     ctx.textAlign = "left";
+    // Мобильные кнопки поражения
+    if (state === STATE.LOST && isMobile) {
+      const bW = 200, bH = 46, gap = 16;
+      const totalBW = bW * 2 + gap;
+      const bY = VH / 2 + 52;
+      const b1X = (VW - totalBW) / 2;
+      const b2X = b1X + bW + gap;
+      // Повтор
+      ctx.fillStyle = "#1e3a5f";
+      ctx.beginPath(); ctx.roundRect(b1X, bY, bW, bH, 8); ctx.fill();
+      ctx.strokeStyle = "#38bdf8"; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.roundRect(b1X, bY, bW, bH, 8); ctx.stroke();
+      ctx.fillStyle = "#e0f2fe"; ctx.font = `bold 17px ${EMOJI_FONT}`; ctx.textAlign = "center";
+      ctx.fillText("🔄 Повтор уровня", b1X + bW / 2, bY + bH / 2);
+      // Меню
+      ctx.fillStyle = "#1c1917";
+      ctx.beginPath(); ctx.roundRect(b2X, bY, bW, bH, 8); ctx.fill();
+      ctx.strokeStyle = "#64748b"; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.roundRect(b2X, bY, bW, bH, 8); ctx.stroke();
+      ctx.fillStyle = "#cbd5e1"; ctx.font = `bold 17px ${EMOJI_FONT}`; ctx.textAlign = "center";
+      ctx.fillText("🏠 В меню", b2X + bW / 2, bY + bH / 2);
+      ctx.textAlign = "left";
+    }
   }
 
   drawMobileControls();
@@ -2007,13 +2066,14 @@ function getAvailableUpgrades() {
 
 function applyUpgrade(id) {
   if (id === "bonus_hp") {
-    player.maxHp += 50;
-    player.hp = Math.min(player.maxHp, player.hp + 50);
-    spawnFloater(player.x, player.y - 40, "+50 HP!", "#4ade80");
+    const gain = Math.max(5, Math.ceil(player.maxHp * 0.1));
+    player.maxHp += gain;
+    player.hp = Math.min(player.maxHp, player.hp + gain);
+    spawnFloater(player.x, player.y - 40, `+${gain} HP!`, "#4ade80");
   }
   if (id === "bonus_dmg") {
-    player.damageBonus += 10;
-    spawnFloater(player.x, player.y - 40, "+Урон!", "#fb923c");
+    player.damageMul = Math.round(((player.damageMul || 1) + 0.1) * 100) / 100;
+    spawnFloater(player.x, player.y - 40, "+10% урон!", "#fb923c");
   }
 }
 
@@ -2032,7 +2092,11 @@ function frame(now) {
 
 // ── Клавиатура ────────────────────────────────────────────────────────────────
 window.addEventListener("keydown", (e) => {
-  if (e.code === "KeyR") { newGame(); return; }
+  if (e.code === "KeyR") {
+    if (state === STATE.LOST) { player.hp = player.maxHp; loadLevel(currentLevel); }
+    else newGame();
+    return;
+  }
   if (e.code === "KeyM") { showMenu(); return; }
 
   if (state === STATE.CHAR_SELECT) {
@@ -2165,6 +2229,8 @@ canvas.addEventListener("click", (e) => {
   }
 
   if (state !== STATE.MENU) return;
+  // «← Герой» кнопка
+  if (x >= 14 && x <= 14 + 130 && y >= 10 && y <= 10 + 34) { showCharSelect(); return; }
   const cols = isMobile ? 3 : 5;
   const cardW = Math.floor((VW * 0.94 - (cols - 1) * 12) / cols);
   const cardH = Math.floor(VH * 0.27);
@@ -2240,8 +2306,24 @@ if (isMobile) {
       return;
     }
 
+    if (state === STATE.LOST) {
+      const { x, y } = scaledTouch(e.changedTouches[0]);
+      const bW = 200, bH = 46, gap = 16;
+      const totalBW = bW * 2 + gap;
+      const bY = VH / 2 + 52;
+      const b1X = (VW - totalBW) / 2;
+      const b2X = b1X + bW + gap;
+      if (x >= b1X && x <= b1X + bW && y >= bY && y <= bY + bH) {
+        player.hp = player.maxHp; loadLevel(currentLevel); return;
+      }
+      if (x >= b2X && x <= b2X + bW && y >= bY && y <= bY + bH) { showMenu(); return; }
+      return;
+    }
+
     if (state === STATE.MENU) {
       const { x, y } = scaledTouch(e.changedTouches[0]);
+      // «← Герой» кнопка
+      if (x >= 14 && x <= 14 + 130 && y >= 10 && y <= 10 + 34) { showCharSelect(); return; }
       const cols = isMobile ? 3 : 5;
       const cardW = Math.floor((VW * 0.94 - (cols - 1) * 12) / cols);
       const cardH = Math.floor(VH * 0.27);
