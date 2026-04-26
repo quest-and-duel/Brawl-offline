@@ -1219,8 +1219,8 @@ function spawnFloater(x, y, text, color) {
 }
 
 const PICKUP_TYPES = {
-  damage: { color: "#fb923c", label: "+урон", dmg: 6,  hp: 0,  mhp: 0  },
-  health: { color: "#22c55e", label: "+HP",   dmg: 0,  hp: 38, mhp: 30 },
+  damage: { color: "#fb923c", label: "+урон", dmg: 2,  hp: 0,  mhp: 0  },
+  health: { color: "#22c55e", label: "+HP",   dmg: 0,  hp: 10, mhp: 0  },
 };
 
 function maybeDropPickup(x, y) {
@@ -1232,7 +1232,8 @@ function maybeDropPickup(x, y) {
 function collectPickup(p) {
   const t = PICKUP_TYPES[p.kind];
   if (!t) return;
-  player.damageBonus += t.dmg;
+  const dmgGain = t.dmg > 0 && player.weapon === "minigun_char" ? 0.5 : t.dmg;
+  player.damageBonus += dmgGain;
   player.maxHp += t.mhp;
   player.hp = Math.min(player.maxHp, player.hp + t.hp);
 }
