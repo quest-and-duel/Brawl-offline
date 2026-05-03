@@ -32,6 +32,7 @@ let mobBtns = [];
 
 function buildMobBtns() {
   mobBtns = [
+    { id: "pause", label: "⏸", ax: VW - 100, ay: 52, r: MOB_BTN_R },
     { id: "menu", label: "M", ax: VW - 52, ay: 52, r: MOB_BTN_R },
   ];
 }
@@ -59,15 +60,19 @@ function scaledTouch(touch) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const STATE = {
+  LOADING: "loading",
   CHAR_SELECT: "char_select",
   MENU: "menu",
   PLAYING: "playing",
+  PAUSED: "paused",
   WON: "won",
   LOST: "lost",
   CLEARED: "cleared",
 };
-let state = STATE.CHAR_SELECT;
+let state = STATE.LOADING;
 let menuHoverIdx = -1;
+let menuHoverEndless = false;
+let menuGearHover = false;
 let charHoverIdx = -1;
 
 /** Выбранный персонаж (ключ в CHARACTERS), сохраняется на всю кампанию */
@@ -89,6 +94,7 @@ const PLAYER = {
 const CHARACTERS = {
   lumberjack: {
     id: "lumberjack",
+    spriteKey: "char_lumberjack",
     name: "Дровосек",
     emoji: "🪓",
     color: "#84cc16",
@@ -100,6 +106,7 @@ const CHARACTERS = {
   },
   sniper: {
     id: "sniper",
+    spriteKey: "char_sniper",
     name: "Снайпер",
     emoji: "🎯",
     color: "#06b6d4",
@@ -111,6 +118,7 @@ const CHARACTERS = {
   },
   hunter: {
     id: "hunter",
+    spriteKey: "char_hunter",
     name: "Охотник",
     emoji: "🏹",
     color: "#f97316",
@@ -122,6 +130,7 @@ const CHARACTERS = {
   },
   minigunner: {
     id: "minigunner",
+    spriteKey: "char_minigunner",
     name: "Миниганщик",
     emoji: "🌀",
     color: "#a855f7",
@@ -133,6 +142,7 @@ const CHARACTERS = {
   },
   specops: {
     id: "specops",
+    spriteKey: "char_specops",
     name: "Спецназовец",
     emoji: "🪖",
     color: "#3b82f6",
@@ -218,6 +228,12 @@ const BOT_TYPES = {
     reactTime: 0.3, regenDelay: 4, regenRate: 2,
     color: "#65a30d", stroke: "#a3e635", emoji: "👺",
   },
+  wolf: {
+    kind: "wolf", r: 14, speed: 158, maxHp: 48, attackCd: 0.42,
+    attackRange: 5, attackDamage: 13, aggroRange: 520,
+    reactTime: 0.22, regenDelay: 3.2, regenRate: 2.5,
+    color: "#57534e", stroke: "#a8a29e", emoji: "🐺",
+  },
   ice_mage: {
     kind: "ice_mage", r: 18, speed: 108, maxHp: 150, fireCd: 0.75,
     bulletSpeed: 340, bulletDamage: 25, aggroRange: 480, keepDistance: 200,
@@ -241,7 +257,7 @@ const BOT_TYPES = {
 
 const DOG = {
   r: 13, speed: 180, maxHp: 75, damage: 10, attackCd: 0.8,
-  attackRange: 4, aggroRange: 280, stunOnHit: 1.5, emoji: "🐶",
+  attackRange: 4, aggroRange: 280, stunOnHit: 1.5, emoji: "🐶", spriteKey: "dog",
 };
 
 const UPGRADES = {
@@ -492,7 +508,76 @@ const LEVELS = [
     drops: true,
     boss: true,
   },
+  {
+    name: "11 — Тёмный лес",
+    desc: "Волки и маги",
+    emoji: "🌲",
+    w: 1280, h: 720,
+    walls: [
+      { x: 80,  y: 100, w: 280, h: 24 }, { x: 920, y: 100, w: 280, h: 24 },
+      { x: 80,  y: 596, w: 280, h: 24 }, { x: 920, y: 596, w: 280, h: 24 },
+      { x: 420, y: 200, w: 24, h: 200 }, { x: 836, y: 200, w: 24, h: 200 },
+      { x: 520, y: 320, w: 240, h: 24 }, { x: 200, y: 340, w: 120, h: 24 },
+      { x: 960, y: 340, w: 120, h: 24 },
+    ],
+    bots: [
+      { rx: 0.15, ry: 0.2, kind: "mage2" },
+      { rx: 0.85, ry: 0.2, kind: "mage2" },
+      { rx: 0.2,  ry: 0.75, kind: "wolf" },
+      { rx: 0.5,  ry: 0.8,  kind: "wolf" },
+      { rx: 0.8,  ry: 0.75, kind: "wolf" },
+      { rx: 0.35, ry: 0.45, kind: "wolf" },
+      { rx: 0.65, ry: 0.45, kind: "wolf" },
+    ],
+    spawn: { rx: 0.5, ry: 0.12 },
+    drops: true,
+  },
+  {
+    name: "12 — Канализация",
+    desc: "Узкие тоннели и скелеты",
+    emoji: "🧱",
+    w: 1200, h: 680,
+    walls: [
+      { x: 60,  y: 80,  w: 24, h: 520 }, { x: 1116, y: 80,  w: 24, h: 520 },
+      { x: 200, y: 120, w: 360, h: 22 }, { x: 200, y: 538, w: 360, h: 22 },
+      { x: 640, y: 200, w: 22, h: 280 }, { x: 320, y: 300, w: 200, h: 22 },
+      { x: 760, y: 280, w: 200, h: 22 }, { x: 480, y: 420, w: 22, h: 120 },
+    ],
+    bots: [
+      { rx: 0.25, ry: 0.25, kind: "ranger" },
+      { rx: 0.75, ry: 0.25, kind: "ranger" },
+      { rx: 0.5,  ry: 0.15, kind: "mage2" },
+      { rx: 0.15, ry: 0.65, kind: "melee" },
+      { rx: 0.85, ry: 0.65, kind: "melee" },
+    ],
+    waves: [
+      { kind: "skeleton", every: 8, count: 2, totalCount: 16 },
+    ],
+    spawn: { rx: 0.5, ry: 0.9 },
+    drops: true,
+  },
 ];
+
+const ENDLESS_SPEC = {
+  name: "∞ Бесконечная арена",
+  desc: "Выживай как можно дольше",
+  emoji: "♾️",
+  w: 1280, h: 720,
+  walls: [
+    { x: 100, y: 100, w: 1080, h: 22 },
+    { x: 100, y: 598, w: 1080, h: 22 },
+    { x: 100, y: 100, w: 22, h: 520 },
+    { x: 1158, y: 100, w: 22, h: 520 },
+    { x: 580, y: 300, w: 120, h: 120 },
+  ],
+  bots: [
+    { rx: 0.12, ry: 0.5, kind: "ranger" },
+    { rx: 0.88, ry: 0.5, kind: "ranger" },
+  ],
+  spawn: { rx: 0.5, ry: 0.5 },
+  drops: true,
+  endless: true,
+};
 
 let player;
 let bots;
@@ -517,6 +602,165 @@ let hudHasBoss = false;
 let hudHasMage = false;
 let hudHasIceKing = false;
 let hudIceKingHp = 0;
+
+const SAVE_KEY = "brawl-save-v2";
+let saveData = {
+  maxUnlocked: 0,
+  endlessBest: 0,
+  masterVol: 1,
+  musicVol: 0.42,
+  sfxVol: 0.55,
+  muted: false,
+  selChar: "specops",
+};
+let runStats = { kills: 0, damageDealt: 0, damageTaken: 0, pickups: 0, levelTime: 0 };
+let endlessActive = false;
+let endlessSpawnAcc = 0;
+let endlessDifficulty = 0;
+let settingsOpen = false;
+let assetsReady = false;
+let loadProgress = 0;
+let camShakeT = 0;
+let camShakeMag = 0;
+const ASSET_IMGS = Object.create(null);
+let _musicEl = null;
+let _curMusicId = null;
+let _sfxCtx = null;
+const _sfxBuffers = Object.create(null);
+
+function loadSave() {
+  try {
+    const raw = localStorage.getItem(SAVE_KEY);
+    if (!raw) return;
+    const o = JSON.parse(raw);
+    if (typeof o.maxUnlocked === "number") saveData.maxUnlocked = Math.max(0, Math.min(LEVELS.length - 1, o.maxUnlocked));
+    if (typeof o.endlessBest === "number") saveData.endlessBest = o.endlessBest;
+    if (typeof o.masterVol === "number") saveData.masterVol = o.masterVol;
+    if (typeof o.musicVol === "number") saveData.musicVol = o.musicVol;
+    if (typeof o.sfxVol === "number") saveData.sfxVol = o.sfxVol;
+    if (typeof o.muted === "boolean") saveData.muted = o.muted;
+    if (o.selChar && CHARACTERS[o.selChar]) selectedChar = o.selChar;
+  } catch (_) { /* ignore */ }
+}
+
+function persistSave() {
+  saveData.selChar = selectedChar;
+  try {
+    localStorage.setItem(SAVE_KEY, JSON.stringify(saveData));
+  } catch (_) { /* ignore */ }
+}
+
+function resetRunStats() {
+  runStats = { kills: 0, damageDealt: 0, damageTaken: 0, pickups: 0, levelTime: 0 };
+}
+
+function addCamShake(mag, dur) {
+  camShakeMag = Math.max(camShakeMag, mag);
+  camShakeT = Math.max(camShakeT, dur);
+}
+
+function getAudioCtx() {
+  if (!_sfxCtx) _sfxCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return _sfxCtx;
+}
+
+function playSfx(name) {
+  if (saveData.muted || !name) return;
+  const buf = _sfxBuffers[name];
+  if (!buf) return;
+  try {
+    const ctx = getAudioCtx();
+    if (ctx.state === "suspended") ctx.resume();
+    const g = ctx.createGain();
+    g.gain.value = saveData.sfxVol * saveData.masterVol * 0.35;
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    src.connect(g);
+    g.connect(ctx.destination);
+    src.start(0);
+  } catch (_) { /* ignore */ }
+}
+
+function setMusicTrack(trackId) {
+  if (saveData.muted) {
+    try { if (_musicEl) _musicEl.pause(); } catch (_) {}
+    _musicEl = null;
+    _curMusicId = null;
+    return;
+  }
+  if (!trackId) return;
+  const url = ASSET_IMGS.__music?.[trackId];
+  if (!url || _curMusicId === trackId) return;
+  _curMusicId = trackId;
+  try { if (_musicEl) _musicEl.pause(); } catch (_) {}
+  _musicEl = new Audio(url);
+  _musicEl.loop = true;
+  _musicEl.volume = saveData.musicVol * saveData.masterVol;
+  _musicEl.play().catch(() => {});
+}
+
+function refreshMusicVolume() {
+  if (_musicEl) _musicEl.volume = saveData.musicVol * saveData.masterVol * (saveData.muted ? 0 : 1);
+}
+
+async function loadAssets() {
+  loadProgress = 0;
+  let manifest = { sprites: [], music: [], sfx: [] };
+  try {
+    const r = await fetch("assets/manifest.json", { cache: "no-store" });
+    if (r.ok) manifest = await r.json();
+  } catch (_) { /* offline */ }
+  const base = "assets/";
+  const items = [...(manifest.sprites || []), ...(manifest.music || []), ...(manifest.sfx || [])];
+  const total = Math.max(1, items.length);
+  let done = 0;
+  ASSET_IMGS.__music = Object.create(null);
+  for (const s of manifest.sprites || []) {
+    await new Promise((resolve) => {
+      const im = new Image();
+      im.onload = () => { ASSET_IMGS[s.id] = im; done++; loadProgress = done / total; resolve(); };
+      im.onerror = () => { done++; loadProgress = done / total; resolve(); };
+      im.src = base + s.src;
+    });
+  }
+  for (const m of manifest.music || []) {
+    ASSET_IMGS.__music[m.id] = base + m.src;
+    done++; loadProgress = done / total;
+  }
+  for (const x of manifest.sfx || []) {
+    try {
+      const ctx = getAudioCtx();
+      const ab = await fetch(base + x.src).then((r) => r.arrayBuffer());
+      const copy = ab.slice(0);
+      const buf = await ctx.decodeAudioData(copy);
+      _sfxBuffers[x.id] = buf;
+    } catch (_) { /* skip */ }
+    done++; loadProgress = done / total;
+  }
+  loadProgress = 1;
+  assetsReady = true;
+}
+
+function drawSpriteEntity(x, y, r, img, emoji, flash) {
+  if (img && img.complete && img.naturalWidth > 0) {
+    ctx.save();
+    if (flash > 0) {
+      ctx.beginPath(); ctx.arc(x, y, r + 3, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(255,255,255,${Math.min(0.55, flash * 3)})`; ctx.fill();
+    }
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.clip();
+    const s = r * 2 * 1.05;
+    ctx.drawImage(img, x - s / 2, y - s / 2, s, s);
+    ctx.restore();
+    return;
+  }
+  drawEmoji(x, y, r, emoji, flash);
+}
+
+function botSpriteKey(b) {
+  return `bot_${b.type.kind}`;
+}
 
 // ── Физические хелперы ────────────────────────────────────────────────────────
 function rectCircleResolve(cx, cy, cr, rx, ry, rw, rh) {
@@ -548,10 +792,13 @@ function circleHitsWall(cx, cy, cr, w) {
 }
 
 function showMenu() {
+  endlessActive = false;
+  settingsOpen = false;
   state = STATE.MENU;
   canvas.width = VW; canvas.height = VH;
   W = VW; H = VH; camX = 0; camY = 0;
   if (isMobile) buildMobBtns();
+  setMusicTrack("menu");
 }
 
 function showCharSelect() {
@@ -566,6 +813,7 @@ function newGame() {
 }
 
 function startFromLevel(idx) {
+  endlessActive = false;
   currentLevel = idx;
   const ch = CHARACTERS[selectedChar] || CHARACTERS.specops;
   PLAYER.speed    = ch.speed;
@@ -591,6 +839,34 @@ function startFromLevel(idx) {
   };
   dog = null;
   loadLevel(idx);
+}
+
+function startEndless() {
+  endlessActive = true;
+  const ch = CHARACTERS[selectedChar] || CHARACTERS.specops;
+  PLAYER.speed    = ch.speed;
+  PLAYER.maxHp    = ch.maxHp;
+  PLAYER.emoji    = ch.emoji;
+  PLAYER.color    = ch.color;
+
+  player = {
+    x: 0, y: 0,
+    hp: PLAYER.maxHp,
+    maxHp: PLAYER.maxHp,
+    damageBonus: 0,
+    damageMul: 1.0,
+    cd: 0,
+    sinceHit: 999,
+    hitFlash: 0,
+    weapon: ch.weapon,
+    ammo: null,
+    maxAmmo: null,
+    reloading: false,
+    reloadTimer: 0,
+    slowLeft: 0,
+  };
+  dog = null;
+  loadLevel(-1);
 }
 
 function buildBackground(w, h, levelWalls) {
@@ -633,13 +909,20 @@ function buildBackground(w, h, levelWalls) {
 }
 
 function loadLevel(idx) {
-  currentLevel = idx;
+  const L = (idx === -1 && endlessActive) ? ENDLESS_SPEC : LEVELS[idx];
+  if (!L) return;
+  if (idx === -1 && endlessActive) currentLevel = -1;
+  else currentLevel = idx;
+
+  resetRunStats();
+  endlessSpawnAcc = 0;
+  endlessDifficulty = 0;
+
   state = STATE.PLAYING;
   time = 0;
   bullets = []; pickups = []; slashes = []; particles = []; floaters = [];
   hurtFlash = 0; bossSummonTimer = 0; wonCountdown = 0;
 
-  const L = LEVELS[idx];
   canvas.width = VW; canvas.height = VH;
   W = L.w; H = L.h; camX = 0; camY = 0;
 
@@ -647,7 +930,6 @@ function loadLevel(idx) {
   bgCanvas = buildBackground(W, H, walls);
   if (isMobile) buildMobBtns();
 
-  // Init wave timers
   levelWaveTimers = (L.waves || []).map(w => ({
     ...w, timer: w.every, spawned: 0,
   }));
@@ -660,7 +942,6 @@ function loadLevel(idx) {
   player.slowLeft = 0;
   player.hp = Math.min(player.maxHp, player.hp + 40);
 
-  // Reset ammo for the weapon
   const wp = WEAPONS[player.weapon];
   player.ammo = wp?.maxAmmo ?? null;
   player.reloading = false;
@@ -668,7 +949,6 @@ function loadLevel(idx) {
 
   bots = L.bots.map((b) => makeBot(b.rx * W, b.ry * H, b.kind));
 
-  // Dog is always present
   if (!dog || dog.hp <= 0) dog = makeDog();
   dog.maxHp = DOG.maxHp;
   dog.x = player.x - 30;
@@ -680,8 +960,18 @@ function loadLevel(idx) {
   resolveWalls(player, PLAYER.r);
   for (const b of bots) resolveWalls(b, b.type.r);
 
+  const isBossLevel = !!(L.boss || (L.bots || []).some((bb) => bb.kind === "ice_king"));
+  if (L.endless) setMusicTrack(ASSET_IMGS.__music?.endless ? "endless" : "level");
+  else if (isBossLevel) setMusicTrack("boss");
+  else setMusicTrack("level");
+
   elState.textContent = "";
   updateHud();
+}
+
+function getCurrentLevelDef() {
+  if (currentLevel < 0 && endlessActive) return ENDLESS_SPEC;
+  return LEVELS[currentLevel];
 }
 
 function makeBot(x, y, kind) {
@@ -718,7 +1008,7 @@ function makeDog() {
 }
 
 function updateHud() {
-  const lvlLabel = LEVELS[currentLevel]?.name ?? "?";
+  const lvlLabel = getCurrentLevelDef()?.name ?? "?";
   const wp = WEAPONS[player.weapon];
   let ammoStr = "";
   if (wp?.maxAmmo !== undefined) {
@@ -733,7 +1023,9 @@ function updateHud() {
   const botLine = `Боты: ${alive}`;
   if (elBots.textContent !== botLine) elBots.textContent = botLine;
   let st = "";
-  if (state === STATE.WON) st = "Уровень пройден — 1 или 2 для улучшения";
+  if (state === STATE.PLAYING && endlessActive) {
+    st = `♾ ${formatTime(runStats.levelTime)}  ·  рекорд ${formatTime(saveData.endlessBest)}`;
+  } else if (state === STATE.WON) st = "Уровень пройден — 1 или 2 для улучшения";
   else if (state === STATE.CLEARED) st = "Игра пройдена! R — заново";
   else if (state === STATE.LOST) st = "Поражение — R";
   if (elState.textContent !== st) elState.textContent = st;
@@ -766,6 +1058,13 @@ function moveEntity(ent, dx, dy, radius) {
 }
 
 function dist(ax, ay, bx, by) { return Math.hypot(bx - ax, by - ay); }
+
+function formatTime(sec) {
+  const t = Math.max(0, sec | 0);
+  const s = Math.floor(t % 60);
+  const m = Math.floor(t / 60);
+  return `${m}:${String(s).padStart(2, "0")}`;
+}
 function dist2(ax, ay, bx, by) { const dx = bx-ax, dy = by-ay; return dx*dx+dy*dy; }
 
 function lineHitsWall(x0, y0, x1, y1, pad = 0) {
@@ -913,7 +1212,7 @@ function botThink(b, dt) {
   const dD = b.distToDogC;
   if (seesP || seesDog) b.reactLeft -= dt; else b.reactLeft = t.reactTime;
 
-  const retreating = t.kind !== "skeleton" && t.kind !== "goblin" && b.hp < t.maxHp * 0.5;
+  const retreating = t.kind !== "skeleton" && t.kind !== "goblin" && t.kind !== "wolf" && b.hp < t.maxHp * 0.5;
   const moveTarget = retreating ? angToPlayer + Math.PI : angToPlayer;
 
   b.steerCd -= dt;
@@ -977,7 +1276,7 @@ function dogThink(dt) {
       moveEntity(dog, Math.cos(dog.steerAngle) * DOG.speed * dt, Math.sin(dog.steerAngle) * DOG.speed * dt, DOG.r);
     }
     if (bestD <= contact && dog.cd <= 0) {
-      damageBot(target, DOG.damage);
+      damageBot(target, DOG.damage, false);
       if (Math.random() < 0.2) target.stunLeft = Math.max(target.stunLeft, DOG.stunOnHit);
       if (Math.random() < 0.1) { dog.hp = dog.maxHp; spawnFloater(dog.x, dog.y - DOG.r * 2, "Полное HP!", "#4ade80"); }
       dog.cd = DOG.attackCd;
@@ -1117,6 +1416,7 @@ function spawnWaveBots(kind, count, spawnZones) {
 }
 
 function allWavesDone() {
+  if (endlessActive) return false;
   for (const w of levelWaveTimers) {
     const hasLimit = w.totalCount !== undefined;
     const notSpawnedAll = hasLimit && w.spawned < w.totalCount;
@@ -1138,6 +1438,7 @@ function playerAttack(angle) {
     : ((wp.baseDamage || 22) + player.damageBonus * 0.5) * mul;
 
   if (wp.melee) {
+    playSfx("melee_swing");
     slashes.push({ x: player.x, y: player.y, ang: angle, life: 0.2, r: wp.meleeRange });
     for (const b of bots) {
       if (b.hp <= 0) continue;
@@ -1151,6 +1452,7 @@ function playerAttack(angle) {
     return;
   }
 
+  playSfx(player.weapon === "minigun_char" ? "shoot_minigun" : "shoot");
   const bSpeed = wp.bulletSpeed ?? PLAYER.bulletSpeed;
   const muzzle = PLAYER.r + 6;
   const numBullets = wp.bullets || 1;
@@ -1179,8 +1481,11 @@ function playerAttack(angle) {
 
 function damagePlayer(amount) {
   player.hp -= amount;
+  runStats.damageTaken += amount;
   player.sinceHit = 0; player.hitFlash = 0.18;
   hurtFlash = Math.max(hurtFlash, 0.4);
+  addCamShake(5, 0.14);
+  playSfx("player_hurt");
   spawnImpact(player.x, player.y, "#f87171");
   spawnFloater(player.x, player.y - PLAYER.r, `-${Math.ceil(amount)}`, "#f87171");
 }
@@ -1192,8 +1497,9 @@ function damageDog(amount) {
   spawnFloater(dog.x, dog.y - DOG.r, `-${Math.ceil(amount)}`, "#fbbf24");
 }
 
-function damageBot(b, amount) {
+function damageBot(b, amount, countForStats = true) {
   b.hp -= amount; b.sinceHit = 0; b.hitFlash = 0.15;
+  if (countForStats) runStats.damageDealt += amount;
   spawnImpact(b.x, b.y, "#fde047");
   spawnFloater(b.x, b.y - b.type.r, `-${Math.ceil(amount)}`, "#fde047");
   // Ice golem и skeleton дропают пикап позже (в цикле очистки)
@@ -1224,7 +1530,7 @@ const PICKUP_TYPES = {
 };
 
 function maybeDropPickup(x, y) {
-  if (!LEVELS[currentLevel].drops) return;
+  if (!getCurrentLevelDef()?.drops) return;
   const kind = Math.random() < 0.5 ? "damage" : "health";
   pickups.push({ x, y, kind, bob: Math.random() * Math.PI * 2 });
 }
@@ -1232,6 +1538,8 @@ function maybeDropPickup(x, y) {
 function collectPickup(p) {
   const t = PICKUP_TYPES[p.kind];
   if (!t) return;
+  runStats.pickups++;
+  playSfx(p.kind === "health" ? "pickup_hp" : "pickup_dmg");
   const dmgGain = t.dmg > 0 && player.weapon === "minigun_char" ? 0.5 : t.dmg;
   player.damageBonus += dmgGain;
   player.maxHp += t.mhp;
@@ -1293,18 +1601,33 @@ function bossSummon() {
   spawnFloater(W / 2, 40, "Босс призывает подмогу!", "#fbbf24");
 }
 
-function updateCamera() {
-  camX = Math.round(Math.max(0, Math.min(W - VW, player.x - VW / 2)));
-  camY = Math.round(Math.max(0, Math.min(H - VH, player.y - VH / 2)));
+function updateCamera(dt) {
+  let ox = 0, oy = 0;
+  if (camShakeT > 0 && dt) {
+    camShakeT = Math.max(0, camShakeT - dt);
+    ox = (Math.random() - 0.5) * 2 * camShakeMag;
+    oy = (Math.random() - 0.5) * 2 * camShakeMag;
+    if (camShakeT <= 0) camShakeMag = 0;
+  }
+  camX = Math.round(Math.max(0, Math.min(W - VW, player.x - VW / 2)) + ox);
+  camY = Math.round(Math.max(0, Math.min(H - VH, player.y - VH / 2)) + oy);
 }
 
 function update(dt) {
+  if (state === STATE.LOADING) return;
   if (state === STATE.MENU || state === STATE.CHAR_SELECT) return;
+  if (state === STATE.PAUSED) {
+    if (camShakeT > 0) camShakeT = Math.max(0, camShakeT - dt);
+    updateHud();
+    return;
+  }
   time += dt;
   if (particles.length > MAX_PARTICLES) particles.splice(0, particles.length - MAX_PARTICLES);
   if (floaters.length > MAX_FLOATERS)   floaters.splice(0, floaters.length - MAX_FLOATERS);
   if (bullets.length > MAX_BULLETS)     bullets.splice(0, bullets.length - MAX_BULLETS);
   if (state !== STATE.PLAYING) return;
+
+  runStats.levelTime += dt;
 
   // ── Перезарядка ────────────────────────────────────────────────────────────
   if (player.reloading) {
@@ -1371,6 +1694,19 @@ function update(dt) {
         spawnWaveBots(w.kind, w.count || 1, w.spawnZones);
         w.spawned += (w.count || 1);
       }
+    }
+  }
+
+  if (endlessActive && wonCountdown <= 0) {
+    endlessSpawnAcc += dt;
+    const interval = Math.max(1.2, 3.5 - Math.min(2.3, endlessDifficulty * 0.028));
+    if (endlessSpawnAcc >= interval) {
+      endlessSpawnAcc = 0;
+      endlessDifficulty++;
+      const kinds = ["goblin", "wolf", "skeleton", "melee", "ranger"];
+      const tier = Math.min(kinds.length - 1, Math.floor(endlessDifficulty / 22));
+      const kind = kinds[tier];
+      spawnWaveBots(kind, 1 + Math.floor(endlessDifficulty / 45), null);
     }
   }
 
@@ -1482,6 +1818,7 @@ function update(dt) {
         spawnFloater(b.x, b.y - b.type.r - 10, "Воскрес! ❄️", "#7dd3fc");
       } else {
         if (b.type.kind === "ice_golem") maybeDropPickup(b.x, b.y);
+        runStats.kills++;
         bots.splice(i, 1);
       }
     }
@@ -1490,6 +1827,10 @@ function update(dt) {
   // ── Условие победы / поражения ────────────────────────────────────────────
   if (player.hp <= 0) {
     player.hp = 0;
+    if (endlessActive && runStats.levelTime > saveData.endlessBest) {
+      saveData.endlessBest = runStats.levelTime;
+      persistSave();
+    }
     state = STATE.LOST;
   } else if (bots.length === 0 && allWavesDone() && time > 0.3 && wonCountdown <= 0) {
     wonCountdown = 3.0;
@@ -1500,8 +1841,16 @@ function update(dt) {
     wonCountdown -= dt;
     if (wonCountdown <= 0) {
       wonCountdown = 0;
-      if (currentLevel + 1 >= LEVELS.length) state = STATE.CLEARED;
-      else state = STATE.WON;
+      if (endlessActive) { /* no campaign overlay */ }
+      else if (currentLevel + 1 >= LEVELS.length) state = STATE.CLEARED;
+      else {
+        if (currentLevel >= 0) {
+          saveData.maxUnlocked = Math.max(saveData.maxUnlocked, currentLevel + 1);
+          if (saveData.maxUnlocked > LEVELS.length - 1) saveData.maxUnlocked = LEVELS.length - 1;
+          persistSave();
+        }
+        state = STATE.WON;
+      }
     }
   }
 
@@ -1519,7 +1868,7 @@ function update(dt) {
   }
 
   updateHud();
-  if (state === STATE.PLAYING) updateCamera();
+  if (state === STATE.PLAYING) updateCamera(dt);
 }
 
 // ── Отрисовка ─────────────────────────────────────────────────────────────────
@@ -1572,16 +1921,21 @@ function drawChoiceOverlay() {
   ctx.fillStyle = "#f8fafc";
   ctx.font = `bold 28px ${EMOJI_FONT}`;
   ctx.textAlign = "center";
-  ctx.fillText(`Уровень ${currentLevel + 1} пройден! 🎉`, VW / 2, 60);
+  const wonTitle = currentLevel >= 0 ? `Уровень ${currentLevel + 1} пройден! 🎉` : "Раунд завершён!";
+  ctx.fillText(wonTitle, VW / 2, 60);
   ctx.font = `15px ${EMOJI_FONT}`;
   ctx.fillStyle = "#cbd5e1";
   ctx.fillText(isMobile ? "Тапни для выбора улучшения" : "1 / 2 — выбрать улучшение", VW / 2, 90);
+  ctx.font = `13px ${EMOJI_FONT}`;
+  ctx.fillStyle = "#94a3b8";
+  const st = `Убийств: ${runStats.kills} · Урон: ${Math.round(runStats.damageDealt)} · Получено: ${Math.round(runStats.damageTaken)} · Пикапы: ${runStats.pickups} · Время: ${formatTime(runStats.levelTime)}`;
+  ctx.fillText(st, VW / 2, 114);
 
   const opts = Object.values(UPGRADES);
   const cardW = 260, cardH = 140, gapX = 24;
   const totalW = opts.length * cardW + (opts.length - 1) * gapX;
   const startX = (VW - totalW) / 2;
-  const cardY  = VH / 2 - cardH / 2 + 20;
+  const cardY  = VH / 2 - cardH / 2 + 36;
 
   opts.forEach((u, i) => {
     const x = startX + i * (cardW + gapX);
@@ -1662,31 +2016,36 @@ function drawMenu() {
     const col = i % cols, row = Math.floor(i / cols);
     const cx = startX + col * (cardW + gapX);
     const cy = startY + row * (cardH + gapY);
-    const hov = menuHoverIdx === i;
+    const locked = i > saveData.maxUnlocked;
+    const hov = menuHoverIdx === i && !locked;
 
-    ctx.fillStyle = hov ? "#1e3a5f" : "#16253a";
-    ctx.strokeStyle = hov ? "#7dd3fc" : "#334155";
+    ctx.fillStyle = locked ? "#0f172a" : (hov ? "#1e3a5f" : "#16253a");
+    ctx.strokeStyle = locked ? "#1e293b" : (hov ? "#7dd3fc" : "#334155");
     ctx.lineWidth = hov ? 2.5 : 1.5;
     roundRect(cx, cy, cardW, cardH, 12); ctx.fill(); ctx.stroke();
 
-    ctx.fillStyle = hov ? "#38bdf8" : "#475569";
+    ctx.fillStyle = locked ? "#334155" : (hov ? "#38bdf8" : "#475569");
     ctx.font = `bold 12px ${EMOJI_FONT}`;
     ctx.textAlign = "left"; ctx.textBaseline = "top";
     ctx.fillText(`${(i + 1) % 10 === 0 ? 0 : (i + 1) % 10}`, cx + 10, cy + 8);
 
     ctx.font = `bold 28px ${EMOJI_FONT}`;
     ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillStyle = locked ? "rgba(148,163,184,0.35)" : "#f1f5f9";
     ctx.fillText(L.emoji || "🎮", cx + cardW / 2, cy + cardH * 0.42);
 
-    ctx.fillStyle = "#f1f5f9";
+    ctx.fillStyle = locked ? "#475569" : "#f1f5f9";
     ctx.font = `bold 12px ${EMOJI_FONT}`;
     ctx.fillText(L.name, cx + cardW / 2, cy + cardH * 0.72);
 
     ctx.fillStyle = "#64748b";
     ctx.font = `10px ${EMOJI_FONT}`;
-    ctx.fillText(L.desc || "", cx + cardW / 2, cy + cardH * 0.88);
+    ctx.fillText(locked ? "🔒 Пройди предыдущий" : (L.desc || ""), cx + cardW / 2, cy + cardH * 0.88);
 
-    if (hov) {
+    if (locked) {
+      ctx.fillStyle = "rgba(0,0,0,0.45)";
+      roundRect(cx, cy, cardW, cardH, 12); ctx.fill();
+    } else if (hov) {
       ctx.fillStyle = "#0ea5e9";
       roundRect(cx + cardW * 0.2, cy + cardH - 26, cardW * 0.6, 20, 6);
       ctx.fill();
@@ -1695,7 +2054,63 @@ function drawMenu() {
       ctx.fillText("Играть", cx + cardW / 2, cy + cardH - 16);
     }
   }
+
+  const endlessY = Math.min(VH - 52, startY + rows * (cardH + gapY) + gapY + 4);
+  const ex = VW * 0.08, ew = VW * 0.56, eh = 36;
+  const ehov = menuHoverEndless;
+  ctx.fillStyle = ehov ? "#1e3a5f" : "#16253a";
+  ctx.strokeStyle = ehov ? "#a78bfa" : "#475569";
+  ctx.lineWidth = 2;
+  roundRect(ex, endlessY, ew, eh, 10); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = "#e9d5ff";
+  ctx.font = `bold 15px ${EMOJI_FONT}`;
+  ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  ctx.fillText(`${ENDLESS_SPEC.emoji} ${ENDLESS_SPEC.name}`, ex + ew / 2, endlessY + eh / 2);
+  ctx.fillStyle = "#94a3b8";
+  ctx.font = `11px ${EMOJI_FONT}`;
+  ctx.fillText(`Рекорд: ${formatTime(saveData.endlessBest)}`, ex + ew + 12, endlessY + eh / 2 + 2);
+
+  const gx = VW - 96, gy = 8, gw = 40, gh = 34;
+  ctx.fillStyle = menuGearHover ? "#1e3a5f" : "#16253a";
+  ctx.beginPath(); ctx.roundRect(gx, gy, gw, gh, 8); ctx.fill();
+  ctx.strokeStyle = menuGearHover ? "#fbbf24" : "#475569"; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.roundRect(gx, gy, gw, gh, 8); ctx.stroke();
+  ctx.fillStyle = "#fde68a";
+  ctx.font = `bold 18px ${EMOJI_FONT}`;
+  ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  ctx.fillText("⚙", gx + gw / 2, gy + gh / 2);
+
   ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
+
+  if (settingsOpen) drawSettingsOverlay();
+}
+
+function drawSettingsOverlay() {
+  ctx.fillStyle = "rgba(0,0,0,0.65)";
+  ctx.fillRect(0, 0, VW, VH);
+  const px = (VW - 320) / 2, py = (VH - 220) / 2, pw = 320, ph = 220;
+  ctx.fillStyle = "#1e293b";
+  roundRect(px, py, pw, ph, 14); ctx.fill();
+  ctx.strokeStyle = "#64748b"; ctx.lineWidth = 2;
+  roundRect(px, py, pw, ph, 14); ctx.stroke();
+  ctx.fillStyle = "#f8fafc";
+  ctx.font = `bold 20px ${EMOJI_FONT}`;
+  ctx.textAlign = "center";
+  ctx.fillText("Настройки", px + pw / 2, py + 36);
+  ctx.font = `14px ${EMOJI_FONT}`;
+  ctx.fillStyle = "#cbd5e1";
+  const m = saveData.muted ? "Выкл" : "Вкл";
+  ctx.fillText(`Звук: ${m}  ·  G или тап «Mute»`, px + pw / 2, py + 68);
+  ctx.fillText(`Мастер ${Math.round(saveData.masterVol * 100)}%`, px + pw / 2, py + 96);
+  ctx.fillText(`Музыка ${Math.round(saveData.musicVol * 100)}%`, px + pw / 2, py + 120);
+  ctx.fillText(`SFX ${Math.round(saveData.sfxVol * 100)}%`, px + pw / 2, py + 144);
+  const bx = px + 40, by = py + 160, bw = 240, bh = 36;
+  ctx.fillStyle = "#334155";
+  roundRect(bx, by, bw, bh, 8); ctx.fill();
+  ctx.fillStyle = "#e2e8f0";
+  ctx.font = `bold 14px ${EMOJI_FONT}`;
+  ctx.fillText("Закрыть (Esc)", px + pw / 2, by + bh / 2 + 5);
+  ctx.textAlign = "left";
 }
 
 function drawCharSelect() {
@@ -1800,16 +2215,18 @@ function drawJoystick(baseX, baseY, dx, dy, active, color) {
 }
 
 function drawMobileControls() {
-  if (!isMobile || state !== STATE.PLAYING) return;
+  if (!isMobile || (state !== STATE.PLAYING && state !== STATE.PAUSED)) return;
   ctx.save();
-  drawJoystick(
-    mJoy.active    ? mJoy.baseX    : VW * 0.15, mJoy.active    ? mJoy.baseY    : VH * 0.78,
-    mJoy.dx, mJoy.dy, mJoy.active, "rgba(125,211,252,0.55)"
-  );
-  drawJoystick(
-    mAimJoy.active ? mAimJoy.baseX : VW * 0.85, mAimJoy.active ? mAimJoy.baseY : VH * 0.78,
-    mAimJoy.dx, mAimJoy.dy, mAimJoy.active, "rgba(251,191,36,0.6)"
-  );
+  if (state === STATE.PLAYING) {
+    drawJoystick(
+      mJoy.active    ? mJoy.baseX    : VW * 0.15, mJoy.active    ? mJoy.baseY    : VH * 0.78,
+      mJoy.dx, mJoy.dy, mJoy.active, "rgba(125,211,252,0.55)"
+    );
+    drawJoystick(
+      mAimJoy.active ? mAimJoy.baseX : VW * 0.85, mAimJoy.active ? mAimJoy.baseY : VH * 0.78,
+      mAimJoy.dx, mAimJoy.dy, mAimJoy.active, "rgba(251,191,36,0.6)"
+    );
+  }
   for (const btn of mobBtns) {
     ctx.beginPath(); ctx.arc(btn.ax, btn.ay, btn.r, 0, Math.PI * 2);
     ctx.fillStyle = "rgba(30,50,80,0.72)"; ctx.fill();
@@ -1824,6 +2241,19 @@ function drawMobileControls() {
 }
 
 function draw() {
+  if (state === STATE.LOADING) {
+    ctx.fillStyle = "#0b1220";
+    ctx.fillRect(0, 0, VW, VH);
+    ctx.fillStyle = "#f1f5f9";
+    ctx.font = `bold 22px ${EMOJI_FONT}`;
+    ctx.textAlign = "center";
+    ctx.fillText("Загрузка…", VW / 2, VH / 2 - 12);
+    ctx.fillStyle = "#64748b";
+    ctx.font = `14px ${EMOJI_FONT}`;
+    ctx.fillText(`${Math.round(loadProgress * 100)}%`, VW / 2, VH / 2 + 16);
+    ctx.textAlign = "left";
+    return;
+  }
   if (state === STATE.CHAR_SELECT) { drawCharSelect(); return; }
   if (state === STATE.MENU)        { drawMenu();       return; }
   _drawEmojiFontPx = -1;
@@ -1847,7 +2277,10 @@ function draw() {
   }
 
   drawHealthBar(player.x, player.y - PLAYER.r - 14, 44, 4, player.hp / player.maxHp);
-  drawEmoji(player.x, player.y, PLAYER.r, PLAYER.emoji, player.hitFlash);
+  {
+    const ch = CHARACTERS[selectedChar];
+    drawSpriteEntity(player.x, player.y, PLAYER.r, ch?.spriteKey ? ASSET_IMGS[ch.spriteKey] : null, PLAYER.emoji, player.hitFlash);
+  }
 
   // ── Индикатор патронов (дуга вокруг игрока) ───────────────────────────────
   const wpDraw = WEAPONS[player.weapon];
@@ -1880,7 +2313,7 @@ function draw() {
 
   if (dog && dog.hp > 0) {
     drawHealthBar(dog.x, dog.y - DOG.r - 10, 30, 3, dog.hp / dog.maxHp);
-    drawEmoji(dog.x, dog.y, DOG.r, DOG.emoji, dog.hitFlash);
+    drawSpriteEntity(dog.x, dog.y, DOG.r, ASSET_IMGS[DOG.spriteKey], DOG.emoji, dog.hitFlash);
   }
 
   for (const b of bots) {
@@ -1888,7 +2321,7 @@ function draw() {
     const barW = b.type.kind === "boss" || b.type.kind === "ice_king" ? 80 : 36;
     const barH = b.type.kind === "boss" || b.type.kind === "ice_king" ? 6  : 3;
     drawHealthBar(b.x, b.y - b.type.r - 12, barW, barH, b.hp / b.type.maxHp);
-    drawEmoji(b.x, b.y, b.type.r, b.type.emoji, b.hitFlash);
+    drawSpriteEntity(b.x, b.y, b.type.r, ASSET_IMGS[botSpriteKey(b)], b.type.emoji, b.hitFlash);
     if (b.stunLeft > 0) {
       ctx.font = `18px ${EMOJI_FONT}`; ctx.textAlign = "center"; ctx.textBaseline = "middle";
       ctx.fillText("💫", b.x, b.y - b.type.r - 22);
@@ -2033,11 +2466,19 @@ function draw() {
     ctx.font = `18px ${EMOJI_FONT}`; ctx.fillStyle = "#cbd5e1";
     ctx.fillText(hint, VW / 2, VH / 2 + 28);
     ctx.textAlign = "left";
+    if (state === STATE.LOST) {
+      ctx.font = `13px ${EMOJI_FONT}`;
+      ctx.fillStyle = "#94a3b8";
+      ctx.textAlign = "center";
+      const stl = `Убийств: ${runStats.kills} · Урон: ${Math.round(runStats.damageDealt)} · Время: ${formatTime(runStats.levelTime)}`;
+      ctx.fillText(stl, VW / 2, VH / 2 + 40);
+      ctx.textAlign = "left";
+    }
     // Мобильные кнопки поражения
     if (state === STATE.LOST && isMobile) {
       const bW = 200, bH = 46, gap = 16;
       const totalBW = bW * 2 + gap;
-      const bY = VH / 2 + 52;
+      const bY = VH / 2 + 78;
       const b1X = (VW - totalBW) / 2;
       const b2X = b1X + bW + gap;
       // Повтор
@@ -2056,6 +2497,19 @@ function draw() {
       ctx.fillText("🏠 В меню", b2X + bW / 2, bY + bH / 2);
       ctx.textAlign = "left";
     }
+  }
+
+  if (state === STATE.PAUSED) {
+    ctx.fillStyle = "rgba(0,0,0,0.58)";
+    ctx.fillRect(0, 0, VW, VH);
+    ctx.fillStyle = "#f8fafc";
+    ctx.font = `bold 28px ${EMOJI_FONT}`;
+    ctx.textAlign = "center";
+    ctx.fillText("Пауза", VW / 2, VH / 2 - 18);
+    ctx.font = `15px ${EMOJI_FONT}`;
+    ctx.fillStyle = "#cbd5e1";
+    ctx.fillText(isMobile ? "Тап по экрану — продолжить" : "P / Esc — продолжить  ·  M — меню", VW / 2, VH / 2 + 14);
+    ctx.textAlign = "left";
   }
 
   drawMobileControls();
@@ -2079,6 +2533,7 @@ function applyUpgrade(id) {
 }
 
 function advanceLevel() {
+  if (endlessActive) return;
   if (currentLevel + 1 < LEVELS.length) loadLevel(currentLevel + 1);
 }
 
@@ -2093,31 +2548,68 @@ function frame(now) {
 
 // ── Клавиатура ────────────────────────────────────────────────────────────────
 window.addEventListener("keydown", (e) => {
-  if (e.code === "KeyR") {
-    if (state === STATE.LOST) { player.hp = player.maxHp; loadLevel(currentLevel); }
-    else newGame();
+  if (state === STATE.PAUSED) {
+    if (e.code === "Escape" || e.code === "KeyP") { state = STATE.PLAYING; e.preventDefault(); return; }
+    if (e.code === "KeyM") { showMenu(); return; }
     return;
   }
-  if (e.code === "KeyM") { showMenu(); return; }
+
+  if (e.code === "KeyR") {
+    if (state === STATE.LOST) {
+      player.hp = player.maxHp;
+      loadLevel(endlessActive ? -1 : currentLevel);
+    } else newGame();
+    return;
+  }
+  if (e.code === "KeyM") {
+    if (state !== STATE.MENU) showMenu();
+    return;
+  }
+
+  if (state === STATE.PLAYING && (e.code === "Escape" || e.code === "KeyP")) {
+    state = STATE.PAUSED;
+    mouseLeftHeld = false;
+    mouseRightHeld = false;
+    e.preventDefault();
+    return;
+  }
 
   if (state === STATE.CHAR_SELECT) {
     const charIds = Object.keys(CHARACTERS);
     const keyMap = { Digit1:0,Digit2:1,Digit3:2,Digit4:3,Digit5:4, Numpad1:0,Numpad2:1,Numpad3:2,Numpad4:3,Numpad5:4 }[e.code];
     if (keyMap !== undefined && keyMap < charIds.length) {
-      selectedChar = charIds[keyMap]; showMenu();
+      selectedChar = charIds[keyMap]; persistSave(); showMenu();
     }
     if (e.code === "Enter" || e.code === "Space") showMenu();
     return;
   }
 
   if (state === STATE.MENU) {
+    if (e.code === "KeyG") { settingsOpen = !settingsOpen; e.preventDefault(); return; }
+    if (settingsOpen) {
+      if (e.code === "Escape") { settingsOpen = false; return; }
+      if (e.code === "KeyN") { saveData.muted = !saveData.muted; persistSave(); refreshMusicVolume(); return; }
+      if (e.code === "Equal" || e.code === "NumpadAdd") {
+        saveData.masterVol = Math.min(1, saveData.masterVol + 0.08);
+        saveData.musicVol = Math.min(1, saveData.musicVol + 0.08);
+        saveData.sfxVol = Math.min(1, saveData.sfxVol + 0.08);
+        persistSave(); refreshMusicVolume(); return;
+      }
+      if (e.code === "Minus" || e.code === "NumpadSubtract") {
+        saveData.masterVol = Math.max(0, saveData.masterVol - 0.08);
+        saveData.musicVol = Math.max(0, saveData.musicVol - 0.08);
+        saveData.sfxVol = Math.max(0, saveData.sfxVol - 0.08);
+        persistSave(); refreshMusicVolume(); return;
+      }
+      return;
+    }
     const menuKey = {
       Digit1:0,Digit2:1,Digit3:2,Digit4:3,Digit5:4,
       Digit6:5,Digit7:6,Digit8:7,Digit9:8,Digit0:9,
       Numpad1:0,Numpad2:1,Numpad3:2,Numpad4:3,Numpad5:4,
       Numpad6:5,Numpad7:6,Numpad8:7,Numpad9:8,Numpad0:9,
     }[e.code];
-    if (menuKey !== undefined && menuKey < LEVELS.length) startFromLevel(menuKey);
+    if (menuKey !== undefined && menuKey < LEVELS.length && menuKey <= saveData.maxUnlocked) startFromLevel(menuKey);
     return;
   }
 
@@ -2174,6 +2666,7 @@ canvas.addEventListener("mousemove", (e) => {
   // Menu hover
   const x = (e.clientX - rect.left) * (VW / rw);
   const y = (e.clientY - rect.top)  * (VH / rh);
+  menuGearHover = x >= VW - 96 && x <= VW - 56 && y >= 8 && y <= 42;
   const cols = isMobile ? 3 : 5;
   const cardW = Math.floor((VW * 0.94 - (cols - 1) * 12) / cols);
   const cardH = Math.floor(VH * 0.27);
@@ -2183,15 +2676,20 @@ canvas.addEventListener("mousemove", (e) => {
   const rows = Math.ceil(LEVELS.length / cols);
   const totalGridH = rows * cardH + (rows - 1) * gapY;
   const startY = Math.floor((VH - totalGridH) / 2 + 14);
+  const endlessY = Math.min(VH - 52, startY + rows * (cardH + gapY) + gapY + 4);
+  const ex = VW * 0.08, ew = VW * 0.56, eh = 36;
+  menuHoverEndless = x >= ex && x <= ex + ew && y >= endlessY && y <= endlessY + eh;
   let found = -1;
-  for (let i = 0; i < LEVELS.length; i++) {
-    const col = i % cols, row = Math.floor(i / cols);
-    const cx = startX + col * (cardW + gapX);
-    const cy = startY + row * (cardH + gapY);
-    if (x >= cx && x <= cx + cardW && y >= cy && y <= cy + cardH) { found = i; break; }
+  if (!menuHoverEndless && !menuGearHover) {
+    for (let i = 0; i < LEVELS.length; i++) {
+      const col = i % cols, row = Math.floor(i / cols);
+      const cx = startX + col * (cardW + gapX);
+      const cy = startY + row * (cardH + gapY);
+      if (x >= cx && x <= cx + cardW && y >= cy && y <= cy + cardH) { found = i; break; }
+    }
   }
   menuHoverIdx = found;
-  canvas.style.cursor = found >= 0 ? "pointer" : "default";
+  canvas.style.cursor = (found >= 0 || menuHoverEndless || menuGearHover) ? "pointer" : "default";
 });
 
 canvas.addEventListener("click", (e) => {
@@ -2223,7 +2721,7 @@ canvas.addEventListener("click", (e) => {
       const cx = rowStartX + col * (cardW + gapX);
       const cy = startY + row * (cardH + gapY);
       if (x >= cx && x <= cx + cardW && y >= cy && y <= cy + cardH) {
-        selectedChar = id; showMenu();
+        selectedChar = id; persistSave(); showMenu();
       }
     });
     return;
@@ -2232,6 +2730,29 @@ canvas.addEventListener("click", (e) => {
   if (state !== STATE.MENU) return;
   // «← Герой» кнопка
   if (x >= 14 && x <= 14 + 130 && y >= 10 && y <= 10 + 34) { showCharSelect(); return; }
+  if (x >= VW - 96 && x <= VW - 56 && y >= 8 && y <= 42) { settingsOpen = !settingsOpen; refreshMusicVolume(); return; }
+
+  if (settingsOpen) {
+    const px = (VW - 320) / 2, py = (VH - 220) / 2, pw = 320, ph = 220;
+    if (x < px || x > px + pw || y < py || y > py + ph) { settingsOpen = false; return; }
+    if (y >= py + 52 && y <= py + 80) { saveData.muted = !saveData.muted; persistSave(); refreshMusicVolume(); return; }
+    const bx = px + 40, by = py + 160, bw = 240, bh = 36;
+    if (x >= bx && x <= bx + bw && y >= by && y <= by + bh) { settingsOpen = false; return; }
+    if (y >= py + 88 && y <= py + 154) {
+      if (x < px + pw / 2) {
+        saveData.masterVol = Math.max(0, saveData.masterVol - 0.1);
+        saveData.musicVol = Math.max(0, saveData.musicVol - 0.1);
+        saveData.sfxVol = Math.max(0, saveData.sfxVol - 0.1);
+      } else {
+        saveData.masterVol = Math.min(1, saveData.masterVol + 0.1);
+        saveData.musicVol = Math.min(1, saveData.musicVol + 0.1);
+        saveData.sfxVol = Math.min(1, saveData.sfxVol + 0.1);
+      }
+      persistSave(); refreshMusicVolume(); return;
+    }
+    return;
+  }
+
   const cols = isMobile ? 3 : 5;
   const cardW = Math.floor((VW * 0.94 - (cols - 1) * 12) / cols);
   const cardH = Math.floor(VH * 0.27);
@@ -2241,7 +2762,11 @@ canvas.addEventListener("click", (e) => {
   const rows = Math.ceil(LEVELS.length / cols);
   const totalGridH = rows * cardH + (rows - 1) * gapY;
   const startY = Math.floor((VH - totalGridH) / 2 + 14);
+  const endlessY = Math.min(VH - 52, startY + rows * (cardH + gapY) + gapY + 4);
+  const ex = VW * 0.08, ew = VW * 0.56, eh = 36;
+  if (x >= ex && x <= ex + ew && y >= endlessY && y <= endlessY + eh) { startEndless(); return; }
   for (let i = 0; i < LEVELS.length; i++) {
+    if (i > saveData.maxUnlocked) continue;
     const col = i % cols, row = Math.floor(i / cols);
     const cx = startX + col * (cardW + gapX);
     const cy = startY + row * (cardH + gapY);
@@ -2268,6 +2793,7 @@ if (isMobile) {
     for (const btn of mobBtns) {
       const dx = cx - btn.ax, dy = cy - btn.ay;
       if (dx*dx + dy*dy <= btn.r * btn.r) {
+        if (btn.id === "pause") { if (state === STATE.PLAYING) state = STATE.PAUSED; return true; }
         if (btn.id === "menu") { showMenu(); return true; }
       }
     }
@@ -2301,9 +2827,16 @@ if (isMobile) {
         const cx2 = rowStartX + col * (cardW + gapX);
         const cy2 = startY + row * (cardH + gapY);
         if (x >= cx2 && x <= cx2 + cardW && y >= cy2 && y <= cy2 + cardH) {
-          selectedChar = id; showMenu();
+          selectedChar = id; persistSave(); showMenu();
         }
       });
+      return;
+    }
+
+    if (state === STATE.PAUSED) {
+      const { x, y } = scaledTouch(e.changedTouches[0]);
+      if (handleMobBtn(x, y)) return;
+      state = STATE.PLAYING;
       return;
     }
 
@@ -2311,11 +2844,11 @@ if (isMobile) {
       const { x, y } = scaledTouch(e.changedTouches[0]);
       const bW = 200, bH = 46, gap = 16;
       const totalBW = bW * 2 + gap;
-      const bY = VH / 2 + 52;
+      const bY = VH / 2 + 78;
       const b1X = (VW - totalBW) / 2;
       const b2X = b1X + bW + gap;
       if (x >= b1X && x <= b1X + bW && y >= bY && y <= bY + bH) {
-        player.hp = player.maxHp; loadLevel(currentLevel); return;
+        player.hp = player.maxHp; loadLevel(endlessActive ? -1 : currentLevel); return;
       }
       if (x >= b2X && x <= b2X + bW && y >= bY && y <= bY + bH) { showMenu(); return; }
       return;
@@ -2323,8 +2856,28 @@ if (isMobile) {
 
     if (state === STATE.MENU) {
       const { x, y } = scaledTouch(e.changedTouches[0]);
-      // «← Герой» кнопка
       if (x >= 14 && x <= 14 + 130 && y >= 10 && y <= 10 + 34) { showCharSelect(); return; }
+      if (x >= VW - 96 && x <= VW - 56 && y >= 8 && y <= 42) { settingsOpen = !settingsOpen; refreshMusicVolume(); return; }
+      if (settingsOpen) {
+        const px = (VW - 320) / 2, py = (VH - 220) / 2, pw = 320, ph = 220;
+        if (x < px || x > px + pw || y < py || y > py + ph) { settingsOpen = false; return; }
+        if (y >= py + 52 && y <= py + 80) { saveData.muted = !saveData.muted; persistSave(); refreshMusicVolume(); return; }
+        const bx = px + 40, by = py + 160, bw = 240, bh = 36;
+        if (x >= bx && x <= bx + bw && y >= by && y <= by + bh) { settingsOpen = false; return; }
+        if (y >= py + 88 && y <= py + 154) {
+          if (x < px + pw / 2) {
+            saveData.masterVol = Math.max(0, saveData.masterVol - 0.1);
+            saveData.musicVol = Math.max(0, saveData.musicVol - 0.1);
+            saveData.sfxVol = Math.max(0, saveData.sfxVol - 0.1);
+          } else {
+            saveData.masterVol = Math.min(1, saveData.masterVol + 0.1);
+            saveData.musicVol = Math.min(1, saveData.musicVol + 0.1);
+            saveData.sfxVol = Math.min(1, saveData.sfxVol + 0.1);
+          }
+          persistSave(); refreshMusicVolume(); return;
+        }
+        return;
+      }
       const cols = isMobile ? 3 : 5;
       const cardW = Math.floor((VW * 0.94 - (cols - 1) * 12) / cols);
       const cardH = Math.floor(VH * 0.27);
@@ -2334,7 +2887,11 @@ if (isMobile) {
       const rows = Math.ceil(LEVELS.length / cols);
       const totalGridH = rows * cardH + (rows - 1) * gapY;
       const startY = Math.floor((VH - totalGridH) / 2 + 14);
+      const endlessY = Math.min(VH - 52, startY + rows * (cardH + gapY) + gapY + 4);
+      const ex = VW * 0.08, ew = VW * 0.56, eh = 36;
+      if (x >= ex && x <= ex + ew && y >= endlessY && y <= endlessY + eh) { startEndless(); return; }
       for (let i = 0; i < LEVELS.length; i++) {
+        if (i > saveData.maxUnlocked) continue;
         const col = i % cols, row = Math.floor(i / cols);
         const cx = startX + col * (cardW + gapX);
         const cy = startY + row * (cardH + gapY);
@@ -2349,7 +2906,7 @@ if (isMobile) {
       const cardW = 260, cardH = 140, gapX = 24;
       const totalW = opts.length * cardW + (opts.length - 1) * gapX;
       const startX = (VW - totalW) / 2;
-      const cardY  = VH / 2 - cardH / 2 + 20;
+      const cardY  = VH / 2 - cardH / 2 + 36;
       for (let i = 0; i < opts.length; i++) {
         const cx = startX + i * (cardW + gapX);
         if (x >= cx && x <= cx + cardW && y >= cardY && y <= cardY + cardH) {
@@ -2359,7 +2916,7 @@ if (isMobile) {
       return;
     }
 
-    if (state !== STATE.PLAYING) return;
+    if (state !== STATE.PLAYING && state !== STATE.PAUSED) return;
 
     for (const touch of e.changedTouches) {
       const { x, y } = scaledTouch(touch);
@@ -2405,6 +2962,16 @@ if (isMobile) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-newGame();
-canvas.focus();
-requestAnimationFrame(frame);
+async function bootstrap() {
+  loadSave();
+  try {
+    await loadAssets();
+  } catch (err) {
+    console.warn("[game] loadAssets", err);
+    assetsReady = true;
+  }
+  newGame();
+  canvas.focus();
+  requestAnimationFrame(frame);
+}
+bootstrap();

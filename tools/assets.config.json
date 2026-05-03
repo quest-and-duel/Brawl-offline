@@ -1,0 +1,96 @@
+{
+  "apiBase": "https://api.302.ai",
+  "imageModel": "gpt-image-1",
+  "images": [
+    {
+      "id": "char_lumberjack",
+      "file": "sprites/char_lumberjack.png",
+      "prompt": "Top-down game sprite, single lumberjack hero on transparent background, cartoon style, facing down, axe visible, centered, no text"
+    },
+    {
+      "id": "char_sniper",
+      "file": "sprites/char_sniper.png",
+      "prompt": "Top-down game sprite, sniper soldier on transparent background, cartoon style, rifle, centered, no text"
+    },
+    {
+      "id": "char_hunter",
+      "file": "sprites/char_hunter.png",
+      "prompt": "Top-down game sprite, hunter with shotgun on transparent background, cartoon style, centered, no text"
+    },
+    {
+      "id": "char_minigunner",
+      "file": "sprites/char_minigunner.png",
+      "prompt": "Top-down game sprite, soldier with minigun on transparent background, cartoon style, centered, no text"
+    },
+    {
+      "id": "char_specops",
+      "file": "sprites/char_specops.png",
+      "prompt": "Top-down game sprite, special forces soldier on transparent background, cartoon style, assault rifle, centered, no text"
+    },
+    {
+      "id": "dog",
+      "file": "sprites/dog.png",
+      "prompt": "Top-down game sprite, friendly dog companion on transparent background, cartoon style, centered, no text"
+    },
+    {
+      "id": "bot_ranger",
+      "file": "sprites/bot_ranger.png",
+      "prompt": "Top-down enemy robot ranger red on transparent background, simple cartoon, centered, no text"
+    },
+    {
+      "id": "bot_melee",
+      "file": "sprites/bot_melee.png",
+      "prompt": "Top-down purple demon melee enemy on transparent background, cartoon, centered, no text"
+    },
+    {
+      "id": "bot_boss",
+      "file": "sprites/bot_boss.png",
+      "prompt": "Top-down large demon boss on transparent background, cartoon, menacing, centered, no text"
+    },
+    {
+      "id": "bot_mage",
+      "file": "sprites/bot_mage.png",
+      "prompt": "Top-down wizard mage purple robes on transparent background, cartoon, centered, no text"
+    },
+    {
+      "id": "bot_skeleton",
+      "file": "sprites/bot_skeleton.png",
+      "prompt": "Top-down small skeleton enemy on transparent background, cartoon, centered, no text"
+    },
+    {
+      "id": "bot_goblin",
+      "file": "sprites/bot_goblin.png",
+      "prompt": "Top-down goblin enemy green on transparent background, cartoon, centered, no text"
+    },
+    {
+      "id": "bot_ice_mage",
+      "file": "sprites/bot_ice_mage.png",
+      "prompt": "Top-down ice frost mage enemy blue on transparent background, cartoon, centered, no text"
+    },
+    {
+      "id": "bot_ice_golem",
+      "file": "sprites/bot_ice_golem.png",
+      "prompt": "Top-down ice stone golem enemy on transparent background, cartoon, centered, no text"
+    },
+    {
+      "id": "bot_ice_king",
+      "file": "sprites/bot_ice_king.png",
+      "prompt": "Top-down ice king boss with crown on transparent background, cartoon, large silhouette, centered, no text"
+    },
+    {
+      "id": "bot_wolf",
+      "file": "sprites/bot_wolf.png",
+      "prompt": "Top-down wolf enemy grey on transparent background, cartoon, centered, no text"
+    },
+    {
+      "id": "pickup_damage",
+      "file": "sprites/pickup_damage.png",
+      "prompt": "Small orange power-up crystal icon top-down on transparent background, game item, no text"
+    },
+    {
+      "id": "pickup_health",
+      "file": "sprites/pickup_health.png",
+      "prompt": "Small green health cross gem icon top-down on transparent background, game item, no text"
+    }
+  ]
+}

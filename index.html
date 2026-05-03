@@ -3,7 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="theme-color" content="#0f172a" />
     <title>Arena Demo — один игрок против ботов</title>
+    <link rel="manifest" href="manifest.webmanifest" />
     <link rel="stylesheet" href="css/style.css" />
   </head>
   <body>
@@ -11,7 +13,7 @@
       <header class="hud">
         <h1 class="title">Arena Demo</h1>
         <p class="sub">
-          WASD — движение · мышь — прицел · ЛКМ / ПКМ (удерж.) — атака · ← / → — смена оружия (после наград) · 1 / 2 / 3 — награда · M — меню · R — заново
+          WASD — движение · мышь — прицел · ЛКМ / ПКМ (удерж.) — атака · P / Esc — пауза · 1 / 2 — награда после уровня · M — меню · R — заново / новая игра
         </p>
         <div class="stats" aria-live="polite">
           <span id="hp">HP: 100</span>
@@ -28,5 +30,10 @@
       ></canvas>
     </main>
     <script src="js/game.js" defer></script>
+    <script>
+      if ("serviceWorker" in navigator) {
+        navigator.serviceWorker.register("sw.js").catch(function () {});
+      }
+    </script>
   </body>
 </html>

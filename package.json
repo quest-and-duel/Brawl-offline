@@ -1,0 +1,8 @@
+{
+  "name": "brawl-offline",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "gen:assets": "node tools/gen-assets.mjs"
+  }
+}
