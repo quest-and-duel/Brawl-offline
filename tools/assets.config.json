@@ -92,5 +92,31 @@
       "file": "sprites/pickup_health.png",
       "prompt": "Small green health cross gem icon top-down on transparent background, game item, no text"
     }
+  ],
+  "music": [
+    {
+      "id": "level",
+      "file": "music/level.mp3",
+      "title": "Arena Pulse Loop",
+      "tags": "chiptune electronic energetic instrumental game loop, no vocals",
+      "mv": "chirp-crow",
+      "skip": true
+    },
+    {
+      "id": "boss",
+      "file": "music/boss.mp3",
+      "title": "Boss Fight Tension",
+      "tags": "dark synth orchestral battle instrumental game boss theme",
+      "mv": "chirp-crow",
+      "skip": true
+    },
+    {
+      "id": "endless",
+      "file": "music/endless.mp3",
+      "title": "Endless Survival Drive",
+      "tags": "fast electronic arcade survival loop instrumental",
+      "mv": "chirp-crow",
+      "skip": true
+    }
   ]
 }

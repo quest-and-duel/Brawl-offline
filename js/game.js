@@ -27,21 +27,39 @@ const isMobile = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
 const mJoy    = { active: false, id: -1, baseX: 0, baseY: 0, dx: 0, dy: 0 };
 const mAimJoy = { active: false, id: -1, baseX: 0, baseY: 0, dx: 0, dy: 0 };
 
-const MOB_BTN_R = 36;
+function mobBtnRadius() {
+  return VW < 520 ? 46 : 36;
+}
 let mobBtns = [];
 
 function buildMobBtns() {
+  const r = mobBtnRadius();
   mobBtns = [
-    { id: "pause", label: "⏸", ax: VW - 100, ay: 52, r: MOB_BTN_R },
-    { id: "menu", label: "M", ax: VW - 52, ay: 52, r: MOB_BTN_R },
+    { id: "pause", label: "⏸", ax: VW - 100, ay: 52, r },
+    { id: "menu", label: "M", ax: VW - 52, ay: 52, r },
   ];
 }
+
+let _canvasRectCache = null;
+let _canvasRectAt = 0;
+function invalidateCanvasRect() {
+  _canvasRectCache = null;
+}
+function getCanvasRectCss() {
+  const now = performance.now();
+  if (!_canvasRectCache || now - _canvasRectAt > 350) {
+    _canvasRectCache = canvas.getBoundingClientRect();
+    _canvasRectAt = now;
+  }
+  return _canvasRectCache;
+}
+window.addEventListener("resize", invalidateCanvasRect);
 
 // Кешируем медиа-запрос — проверяется при каждом тач-событии
 const _portraitRotatedMQ = window.matchMedia('(orientation: portrait) and (pointer: coarse)');
 
 function scaledTouch(touch) {
-  const rect = canvas.getBoundingClientRect();
+  const rect = getCanvasRectCss();
   if (_portraitRotatedMQ.matches) {
     const scaleX = canvas.width  / Math.max(1, rect.height);
     const scaleY = canvas.height / Math.max(1, rect.width);
@@ -162,7 +180,7 @@ const WEAPONS = {
   },
   sniper_rifle: {
     fireCd: 1.0, bullets: 1, spread: 0, baseDamage: 75,
-    bulletSpeed: 740, pierceBullet: true, label: "Снайперка 🎯",
+    bulletSpeed: 740, pierceBullet: true, pierceMaxTargets: 2, label: "Снайперка 🎯",
   },
   hunter_sg: {
     fireCd: 0.5, bullets: 3, spread: 0.28, baseDamage: 20,
@@ -510,7 +528,7 @@ const LEVELS = [
   },
   {
     name: "11 — Тёмный лес",
-    desc: "Волки и маги",
+    desc: "Волки, маги и волны гоблинов",
     emoji: "🌲",
     w: 1280, h: 720,
     walls: [
@@ -528,13 +546,24 @@ const LEVELS = [
       { rx: 0.8,  ry: 0.75, kind: "wolf" },
       { rx: 0.35, ry: 0.45, kind: "wolf" },
       { rx: 0.65, ry: 0.45, kind: "wolf" },
+      { rx: 0.12, ry: 0.5, kind: "melee" },
+      { rx: 0.88, ry: 0.5, kind: "melee" },
+    ],
+    waves: [
+      {
+        kind: "goblin", every: 9, count: 3, totalCount: 30,
+        spawnZones: [
+          { x: 40, y: 40, w: 400, h: 640 },
+          { x: 840, y: 40, w: 400, h: 640 },
+        ],
+      },
     ],
     spawn: { rx: 0.5, ry: 0.12 },
     drops: true,
   },
   {
     name: "12 — Канализация",
-    desc: "Узкие тоннели и скелеты",
+    desc: "Теснее, больше скелетов и стрелков",
     emoji: "🧱",
     w: 1200, h: 680,
     walls: [
@@ -549,9 +578,11 @@ const LEVELS = [
       { rx: 0.5,  ry: 0.15, kind: "mage2" },
       { rx: 0.15, ry: 0.65, kind: "melee" },
       { rx: 0.85, ry: 0.65, kind: "melee" },
+      { rx: 0.5,  ry: 0.55, kind: "skeleton" },
     ],
     waves: [
-      { kind: "skeleton", every: 8, count: 2, totalCount: 16 },
+      { kind: "skeleton", every: 5.5, count: 3, totalCount: 36 },
+      { kind: "goblin", every: 14, count: 2, totalCount: 12 },
     ],
     spawn: { rx: 0.5, ry: 0.9 },
     drops: true,
@@ -560,24 +591,98 @@ const LEVELS = [
 
 const ENDLESS_SPEC = {
   name: "∞ Бесконечная арена",
-  desc: "Выживай как можно дольше",
+  desc: "5 волн по 30с, затем бесконечный финал",
   emoji: "♾️",
   w: 1280, h: 720,
-  walls: [
-    { x: 100, y: 100, w: 1080, h: 22 },
-    { x: 100, y: 598, w: 1080, h: 22 },
-    { x: 100, y: 100, w: 22, h: 520 },
-    { x: 1158, y: 100, w: 22, h: 520 },
-    { x: 580, y: 300, w: 120, h: 120 },
-  ],
-  bots: [
-    { rx: 0.12, ry: 0.5, kind: "ranger" },
-    { rx: 0.88, ry: 0.5, kind: "ranger" },
-  ],
+  walls: [],
+  bots: [],
   spawn: { rx: 0.5, ry: 0.5 },
   drops: true,
   endless: true,
 };
+
+/** Базовые 5 волн (30 с); волны с индексом ≥5 — повтор 5-й + бонус к гоблинам/скелетам */
+const ENDLESS_WAVE_BASE = [
+  { duration: 30, spawns: [{ kind: "goblin", total: 14 }, { kind: "melee", total: 5 }] },
+  { duration: 30, spawns: [{ kind: "skeleton", total: 10 }, { kind: "goblin", total: 6 }] },
+  { duration: 30, spawns: [{ kind: "wolf", total: 8 }, { kind: "ranger", total: 5 }] },
+  { duration: 30, spawns: [{ kind: "melee", total: 8 }, { kind: "mage2", total: 2 }, { kind: "ranger", total: 5 }] },
+  { duration: 30, spawns: [{ kind: "goblin", total: 14 }, { kind: "skeleton", total: 12 }, { kind: "wolf", total: 5 }] },
+];
+
+function mulberry32(seed) {
+  return function rand() {
+    let t = (seed += 0x6d2b79f5);
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function generateEndlessWalls(W, H, seed) {
+  const rand = mulberry32((seed >>> 0) || 1);
+  const walls = [];
+  const t = 22;
+  walls.push(
+    { x: 48, y: 48, w: W - 96, h: t },
+    { x: 48, y: H - 48 - t, w: W - 96, h: t },
+    { x: 48, y: 48, w: t, h: H - 96 },
+    { x: W - 48 - t, y: 48, w: t, h: H - 96 },
+  );
+  const margin = 90;
+  const innerW = W - margin * 2;
+  const innerH = H - margin * 2;
+  const cx0 = W * 0.35, cy0 = H * 0.35, cw = W * 0.3, ch = H * 0.3;
+  const pillars = 12 + Math.floor(rand() * 9);
+  for (let i = 0; i < pillars; i++) {
+    const ww = 32 + Math.floor(rand() * 88);
+    const wh = 32 + Math.floor(rand() * 88);
+    for (let attempt = 0; attempt < 30; attempt++) {
+      const x = margin + rand() * Math.max(8, innerW - ww);
+      const y = margin + rand() * Math.max(8, innerH - wh);
+      if (x + ww < cx0 || x > cx0 + cw || y + wh < cy0 || y > cy0 + ch) {
+        walls.push({ x, y, w: ww, h: wh });
+        break;
+      }
+    }
+  }
+  return walls;
+}
+
+function getEndlessWaveConfig(waveIdx) {
+  const idx = Math.min(4, Math.max(0, waveIdx));
+  const cfg = JSON.parse(JSON.stringify(ENDLESS_WAVE_BASE[idx]));
+  if (waveIdx >= 5) {
+    const extra = (waveIdx - 4) * 5;
+    for (const s of cfg.spawns) {
+      if (s.kind === "goblin" || s.kind === "skeleton") s.total += extra;
+    }
+  }
+  return cfg;
+}
+
+function endlessDefaultSpawnZones() {
+  const m = 48;
+  return [
+    { x: m, y: m, w: W - m * 2, h: 72 },
+    { x: m, y: H - m - 72, w: W - m * 2, h: 72 },
+    { x: m, y: m, w: 72, h: H - m * 2 },
+    { x: W - m - 72, y: m, w: 72, h: H - m * 2 },
+  ];
+}
+
+function initEndlessSpawnQueuesForCurrentWave() {
+  const cfg = getEndlessWaveConfig(endlessWaveIdx);
+  const dur = cfg.duration;
+  endlessWaveDuration = dur;
+  endlessSpawnQueues = cfg.spawns.map((s) => ({
+    kind: s.kind,
+    total: s.total,
+    spawned: 0,
+    acc: 0,
+    interval: dur / Math.max(1, s.total),
+  }));
+}
 
 let player;
 let bots;
@@ -607,6 +712,7 @@ const SAVE_KEY = "brawl-save-v2";
 let saveData = {
   maxUnlocked: 0,
   endlessBest: 0,
+  endlessBestWave: 0,
   masterVol: 1,
   musicVol: 0.42,
   sfxVol: 0.55,
@@ -615,8 +721,17 @@ let saveData = {
 };
 let runStats = { kills: 0, damageDealt: 0, damageTaken: 0, pickups: 0, levelTime: 0 };
 let endlessActive = false;
-let endlessSpawnAcc = 0;
-let endlessDifficulty = 0;
+let nextBotUid = 1;
+let endlessWallSeed = 1;
+let endlessWaveIdx = 0;
+let endlessWaveTime = 0;
+let endlessWaveDuration = 30;
+/** @type {{ kind: string, total: number, spawned: number, acc: number, interval: number }[]} */
+let endlessSpawnQueues = [];
+let endlessWaveCompletePending = false;
+let menuPage = 0;
+/** 0 — нет, -1 — стрелка «назад», 1 — стрелка «вперёд» */
+let menuPageHover = 0;
 let settingsOpen = false;
 let assetsReady = false;
 let loadProgress = 0;
@@ -635,6 +750,7 @@ function loadSave() {
     const o = JSON.parse(raw);
     if (typeof o.maxUnlocked === "number") saveData.maxUnlocked = Math.max(0, Math.min(LEVELS.length - 1, o.maxUnlocked));
     if (typeof o.endlessBest === "number") saveData.endlessBest = o.endlessBest;
+    if (typeof o.endlessBestWave === "number") saveData.endlessBestWave = o.endlessBestWave;
     if (typeof o.masterVol === "number") saveData.masterVol = o.masterVol;
     if (typeof o.musicVol === "number") saveData.musicVol = o.musicVol;
     if (typeof o.sfxVol === "number") saveData.sfxVol = o.sfxVol;
@@ -793,6 +909,7 @@ function circleHitsWall(cx, cy, cr, w) {
 
 function showMenu() {
   endlessActive = false;
+  menuPage = 0;
   settingsOpen = false;
   state = STATE.MENU;
   canvas.width = VW; canvas.height = VH;
@@ -843,6 +960,8 @@ function startFromLevel(idx) {
 
 function startEndless() {
   endlessActive = true;
+  endlessWaveIdx = 0;
+  endlessWallSeed = (Date.now() ^ (Math.random() * 0x7fffffff) | 0) >>> 0;
   const ch = CHARACTERS[selectedChar] || CHARACTERS.specops;
   PLAYER.speed    = ch.speed;
   PLAYER.maxHp    = ch.maxHp;
@@ -915,8 +1034,7 @@ function loadLevel(idx) {
   else currentLevel = idx;
 
   resetRunStats();
-  endlessSpawnAcc = 0;
-  endlessDifficulty = 0;
+  endlessWaveCompletePending = false;
 
   state = STATE.PLAYING;
   time = 0;
@@ -926,13 +1044,20 @@ function loadLevel(idx) {
   canvas.width = VW; canvas.height = VH;
   W = L.w; H = L.h; camX = 0; camY = 0;
 
-  walls = L.walls.map((w) => ({ ...w }));
+  if (idx === -1 && endlessActive) {
+    walls = generateEndlessWalls(W, H, endlessWallSeed).map((w) => ({ ...w }));
+    levelWaveTimers = [];
+    endlessWaveTime = 0;
+    initEndlessSpawnQueuesForCurrentWave();
+  } else {
+    walls = L.walls.map((w) => ({ ...w }));
+    levelWaveTimers = (L.waves || []).map((w) => ({
+      ...w, timer: w.every, spawned: 0,
+    }));
+  }
   bgCanvas = buildBackground(W, H, walls);
   if (isMobile) buildMobBtns();
-
-  levelWaveTimers = (L.waves || []).map(w => ({
-    ...w, timer: w.every, spawned: 0,
-  }));
+  invalidateCanvasRect();
 
   player.x = L.spawn.rx * W;
   player.y = L.spawn.ry * H;
@@ -977,6 +1102,7 @@ function getCurrentLevelDef() {
 function makeBot(x, y, kind) {
   const t = BOT_TYPES[kind];
   const b = {
+    uid: nextBotUid++,
     x, y,
     hp: t.maxHp,
     cd: 0.6 + Math.random() * 0.4,
@@ -1024,9 +1150,11 @@ function updateHud() {
   if (elBots.textContent !== botLine) elBots.textContent = botLine;
   let st = "";
   if (state === STATE.PLAYING && endlessActive) {
-    st = `♾ ${formatTime(runStats.levelTime)}  ·  рекорд ${formatTime(saveData.endlessBest)}`;
-  } else if (state === STATE.WON) st = "Уровень пройден — 1 или 2 для улучшения";
-  else if (state === STATE.CLEARED) st = "Игра пройдена! R — заново";
+    const left = Math.max(0, endlessWaveDuration - endlessWaveTime);
+    st = `♾ Волна ${endlessWaveIdx + 1} · ${left.toFixed(0)}с · рекорд волн ${saveData.endlessBestWave || 0} · время ${formatTime(saveData.endlessBest)}`;
+  } else if (state === STATE.WON) {
+    st = endlessActive ? "Волна пройдена — 1 или 2 для улучшения" : "Уровень пройден — 1 или 2 для улучшения";
+  } else if (state === STATE.CLEARED) st = "Игра пройдена! R — заново";
   else if (state === STATE.LOST) st = "Поражение — R";
   if (elState.textContent !== st) elState.textContent = st;
 }
@@ -1386,7 +1514,8 @@ function iceKingSummonMage(ik) {
   spawnFloater(ik.x, ik.y - ik.type.r - 20, "Ледяной Маг!", "#38bdf8");
 }
 
-function spawnWaveBots(kind, count, spawnZones) {
+function spawnWaveBots(kind, count, spawnZones, opts) {
+  const quiet = opts && opts.quiet;
   for (let i = 0; i < count; i++) {
     let sx = 0, sy = 0;
     if (spawnZones && spawnZones.length > 0) {
@@ -1411,8 +1540,10 @@ function spawnWaveBots(kind, count, spawnZones) {
     resolveWalls(b, b.type.r);
     bots.push(b);
   }
-  const t = BOT_TYPES[kind];
-  spawnFloater(W / 2, H * 0.12, `${t.emoji} Враги появляются!`, "#fbbf24");
+  if (!quiet) {
+    const t = BOT_TYPES[kind];
+    spawnFloater(W / 2, H * 0.12, `${t.emoji} Враги появляются!`, "#fbbf24");
+  }
 }
 
 function allWavesDone() {
@@ -1460,13 +1591,16 @@ function playerAttack(angle) {
     const spread = numBullets > 1 ? (i / (numBullets - 1) - 0.5) * (wp.spread || 0) : 0;
     const rnd = wp.spread ? (Math.random() - 0.5) * (wp.spread || 0) * 0.25 : 0;
     const a = angle + spread + rnd;
+    const pierce = !!(wp.pierceBullet);
     bullets.push({
       x: player.x + Math.cos(a) * muzzle,
       y: player.y + Math.sin(a) * muzzle,
       vx: Math.cos(a) * bSpeed,
       vy: Math.sin(a) * bSpeed,
       owner: "player", damage: baseDmg, r: 5, life: 1.2,
-      pierce: wp.pierceBullet || false,
+      pierce,
+      pierceMaxTargets: pierce ? (wp.pierceMaxTargets ?? 2) : 1,
+      pierceHitUids: pierce ? [] : null,
     });
   }
 
@@ -1697,16 +1831,24 @@ function update(dt) {
     }
   }
 
-  if (endlessActive && wonCountdown <= 0) {
-    endlessSpawnAcc += dt;
-    const interval = Math.max(1.2, 3.5 - Math.min(2.3, endlessDifficulty * 0.028));
-    if (endlessSpawnAcc >= interval) {
-      endlessSpawnAcc = 0;
-      endlessDifficulty++;
-      const kinds = ["goblin", "wolf", "skeleton", "melee", "ranger"];
-      const tier = Math.min(kinds.length - 1, Math.floor(endlessDifficulty / 22));
-      const kind = kinds[tier];
-      spawnWaveBots(kind, 1 + Math.floor(endlessDifficulty / 45), null);
+  if (endlessActive && wonCountdown <= 0 && !endlessWaveCompletePending) {
+    endlessWaveTime += dt;
+    const zones = endlessDefaultSpawnZones();
+    for (const q of endlessSpawnQueues) {
+      if (q.spawned >= q.total) continue;
+      q.acc += dt;
+      while (q.acc >= q.interval && q.spawned < q.total) {
+        q.acc -= q.interval;
+        spawnWaveBots(q.kind, 1, zones, { quiet: true });
+        q.spawned++;
+      }
+    }
+    if (endlessWaveTime >= endlessWaveDuration) {
+      wonCountdown = 3;
+      endlessWaveCompletePending = true;
+      saveData.endlessBestWave = Math.max(saveData.endlessBestWave || 0, endlessWaveIdx + 1);
+      persistSave();
+      spawnFloater(W / 2, H * 0.48, "Волна завершена — бонусы!", "#4ade80");
     }
   }
 
@@ -1752,8 +1894,19 @@ function update(dt) {
       for (const b of bots) {
         if (b.hp <= 0) continue;
         if (dist2(bullet.x, bullet.y, b.x, b.y) < (b.type.r + br) * (b.type.r + br)) {
+          if (bullet.pierce && bullet.pierceHitUids && bullet.pierceHitUids.includes(b.uid)) continue;
           damageBot(b, bullet.damage);
-          if (!bullet.pierce) { bullet.life = 0; hitBot = true; break; }
+          if (!bullet.pierce) {
+            bullet.life = 0;
+            hitBot = true;
+            break;
+          }
+          bullet.pierceHitUids.push(b.uid);
+          if (bullet.pierceHitUids.length >= (bullet.pierceMaxTargets ?? 2)) {
+            bullet.life = 0;
+            hitBot = true;
+            break;
+          }
         }
       }
       if (hitBot) continue;
@@ -1827,8 +1980,11 @@ function update(dt) {
   // ── Условие победы / поражения ────────────────────────────────────────────
   if (player.hp <= 0) {
     player.hp = 0;
-    if (endlessActive && runStats.levelTime > saveData.endlessBest) {
-      saveData.endlessBest = runStats.levelTime;
+    if (endlessActive) {
+      if (runStats.levelTime > saveData.endlessBest) {
+        saveData.endlessBest = runStats.levelTime;
+      }
+      saveData.endlessBestWave = Math.max(saveData.endlessBestWave || 0, endlessWaveIdx + 1);
       persistSave();
     }
     state = STATE.LOST;
@@ -1841,28 +1997,37 @@ function update(dt) {
     wonCountdown -= dt;
     if (wonCountdown <= 0) {
       wonCountdown = 0;
-      if (endlessActive) { /* no campaign overlay */ }
-      else if (currentLevel + 1 >= LEVELS.length) state = STATE.CLEARED;
-      else {
-        if (currentLevel >= 0) {
-          saveData.maxUnlocked = Math.max(saveData.maxUnlocked, currentLevel + 1);
-          if (saveData.maxUnlocked > LEVELS.length - 1) saveData.maxUnlocked = LEVELS.length - 1;
-          persistSave();
-        }
+      if (endlessActive && endlessWaveCompletePending) {
+        endlessWaveCompletePending = false;
         state = STATE.WON;
+      } else if (!endlessActive) {
+        if (currentLevel + 1 >= LEVELS.length) state = STATE.CLEARED;
+        else {
+          if (currentLevel >= 0) {
+            saveData.maxUnlocked = Math.max(saveData.maxUnlocked, currentLevel + 1);
+            if (saveData.maxUnlocked > LEVELS.length - 1) saveData.maxUnlocked = LEVELS.length - 1;
+            persistSave();
+          }
+          state = STATE.WON;
+        }
       }
     }
   }
 
   // ── HUD-данные ────────────────────────────────────────────────────────────
   if (state === STATE.PLAYING) {
-    const bossE = bots.find((b) => b.type.kind === "boss" && b.hp > 0);
+    let bossE = null, mageE = null, ikE = null;
+    for (const b of bots) {
+      if (b.hp <= 0) continue;
+      if (!bossE && b.type.kind === "boss") bossE = b;
+      if (!mageE && b.type.kind === "mage") mageE = b;
+      if (!ikE && b.type.kind === "ice_king") ikE = b;
+      if (bossE && mageE && ikE) break;
+    }
     hudHasBoss = !!bossE;
     hudOverlayBossT = bossE ? Math.max(0, bossE.type.summonEvery - bossSummonTimer) : 0;
-    const mageE = bots.find((b) => b.type.kind === "mage" && b.hp > 0);
     hudHasMage = !!mageE;
     hudOverlayMageT = mageE ? Math.max(0, mageE.type.summonEvery - (mageE.summonTimer || 0)) : 0;
-    const ikE = bots.find((b) => b.type.kind === "ice_king" && b.hp > 0);
     hudHasIceKing = !!ikE;
     hudIceKingHp = ikE ? ikE.hp : 0;
   }
@@ -1921,7 +2086,9 @@ function drawChoiceOverlay() {
   ctx.fillStyle = "#f8fafc";
   ctx.font = `bold 28px ${EMOJI_FONT}`;
   ctx.textAlign = "center";
-  const wonTitle = currentLevel >= 0 ? `Уровень ${currentLevel + 1} пройден! 🎉` : "Раунд завершён!";
+  const wonTitle = endlessActive
+    ? `Волна ${endlessWaveIdx + 1} завершена! 🎉`
+    : (currentLevel >= 0 ? `Уровень ${currentLevel + 1} пройден! 🎉` : "Раунд завершён!");
   ctx.fillText(wonTitle, VW / 2, 60);
   ctx.font = `15px ${EMOJI_FONT}`;
   ctx.fillStyle = "#cbd5e1";
@@ -1978,6 +2145,32 @@ function wrapText(text, x, y, maxW, lh) {
   if (line) ctx.fillText(line.trim(), x, yy);
 }
 
+function getMenuLevelLayout() {
+  const cols = isMobile ? 2 : 4;
+  const rows = 2;
+  const cardsPerPage = cols * rows;
+  const totalPages = Math.max(1, Math.ceil(LEVELS.length / cardsPerPage));
+  const page = Math.max(0, Math.min(menuPage, totalPages - 1));
+  const cardW = Math.floor((VW * 0.88 - (cols - 1) * 12) / cols);
+  const cardH = Math.floor(VH * 0.26);
+  const gapX = 12;
+  const gapY = Math.floor(VH * 0.022);
+  const totalW = cols * cardW + (cols - 1) * gapX;
+  const startX = (VW - totalW) / 2;
+  const totalGridH = rows * cardH + (rows - 1) * gapY;
+  const startY = Math.floor((VH - totalGridH) / 2 + 36);
+  const arrowW = 34;
+  const arrowH = totalGridH;
+  const pageLeftX = Math.max(6, startX - arrowW - 10);
+  const pageRightX = Math.min(VW - 6 - arrowW, startX + totalW + 10);
+  const endlessY = Math.min(VH - 52, startY + totalGridH + gapY + 18);
+  const ex = VW * 0.08, ew = VW * 0.56, eh = 36;
+  return {
+    cols, rows, cardsPerPage, totalPages, page, cardW, cardH, gapX, gapY, startX, startY, totalW, totalGridH,
+    pageLeftX, pageRightX, arrowW, arrowH, endlessY, ex, ew, eh,
+  };
+}
+
 function drawMenu() {
   _drawEmojiFontPx = -1;
   ctx.fillStyle = "#0f1a2e";
@@ -1999,30 +2192,45 @@ function drawMenu() {
   ctx.font = `14px ${EMOJI_FONT}`;
   ctx.fillStyle = "#64748b";
   const ch = CHARACTERS[selectedChar];
-  ctx.fillText(`Персонаж: ${ch?.emoji ?? ""} ${ch?.name ?? ""} · Кликни карточку или нажми 1–0`, W / 2, 76);
+  ctx.fillText(`Персонаж: ${ch?.emoji ?? ""} ${ch?.name ?? ""} · Страница: стрелки / колёсико · Уровни 1–8 на странице`, W / 2, 76);
 
-  const cols = isMobile ? 3 : 5;
-  const cardW = Math.floor((VW * 0.94 - (cols - 1) * 12) / cols);
-  const cardH = Math.floor(VH * 0.27);
-  const gapX = 12, gapY = Math.floor(VH * 0.025);
-  const totalW = cols * cardW + (cols - 1) * gapX;
-  const startX = (VW - totalW) / 2;
-  const rows = Math.ceil(LEVELS.length / cols);
-  const totalGridH = rows * cardH + (rows - 1) * gapY;
-  const startY = Math.floor((VH - totalGridH) / 2 + 14);
+  const M = getMenuLevelLayout();
+  const startIdx = M.page * M.cardsPerPage;
 
-  for (let i = 0; i < LEVELS.length; i++) {
+  if (M.totalPages > 1) {
+    const drawArrow = (ax, ay, dir, hot) => {
+      ctx.fillStyle = hot ? "#1e3a5f" : "#16253a";
+      ctx.strokeStyle = hot ? "#7dd3fc" : "#475569";
+      ctx.lineWidth = 2;
+      roundRect(ax, ay, M.arrowW, M.arrowH, 8);
+      ctx.fill(); ctx.stroke();
+      ctx.fillStyle = "#e2e8f0";
+      ctx.font = `bold 22px ${EMOJI_FONT}`;
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText(dir < 0 ? "◀" : "▶", ax + M.arrowW / 2, ay + M.arrowH / 2);
+    };
+    drawArrow(M.pageLeftX, M.startY, -1, menuPageHover === -1);
+    drawArrow(M.pageRightX, M.startY, 1, menuPageHover === 1);
+    ctx.font = `11px ${EMOJI_FONT}`;
+    ctx.fillStyle = "#64748b";
+    ctx.textAlign = "center";
+    ctx.fillText(`${M.page + 1} / ${M.totalPages}`, VW / 2, M.startY - 10);
+  }
+
+  for (let k = 0; k < M.cardsPerPage; k++) {
+    const i = startIdx + k;
+    if (i >= LEVELS.length) break;
     const L = LEVELS[i];
-    const col = i % cols, row = Math.floor(i / cols);
-    const cx = startX + col * (cardW + gapX);
-    const cy = startY + row * (cardH + gapY);
+    const col = k % M.cols, row = Math.floor(k / M.cols);
+    const cx = M.startX + col * (M.cardW + M.gapX);
+    const cy = M.startY + row * (M.cardH + M.gapY);
     const locked = i > saveData.maxUnlocked;
     const hov = menuHoverIdx === i && !locked;
 
     ctx.fillStyle = locked ? "#0f172a" : (hov ? "#1e3a5f" : "#16253a");
     ctx.strokeStyle = locked ? "#1e293b" : (hov ? "#7dd3fc" : "#334155");
     ctx.lineWidth = hov ? 2.5 : 1.5;
-    roundRect(cx, cy, cardW, cardH, 12); ctx.fill(); ctx.stroke();
+    roundRect(cx, cy, M.cardW, M.cardH, 12); ctx.fill(); ctx.stroke();
 
     ctx.fillStyle = locked ? "#334155" : (hov ? "#38bdf8" : "#475569");
     ctx.font = `bold 12px ${EMOJI_FONT}`;
@@ -2032,31 +2240,31 @@ function drawMenu() {
     ctx.font = `bold 28px ${EMOJI_FONT}`;
     ctx.textAlign = "center"; ctx.textBaseline = "middle";
     ctx.fillStyle = locked ? "rgba(148,163,184,0.35)" : "#f1f5f9";
-    ctx.fillText(L.emoji || "🎮", cx + cardW / 2, cy + cardH * 0.42);
+    ctx.fillText(L.emoji || "🎮", cx + M.cardW / 2, cy + M.cardH * 0.42);
 
     ctx.fillStyle = locked ? "#475569" : "#f1f5f9";
     ctx.font = `bold 12px ${EMOJI_FONT}`;
-    ctx.fillText(L.name, cx + cardW / 2, cy + cardH * 0.72);
+    ctx.fillText(L.name, cx + M.cardW / 2, cy + M.cardH * 0.72);
 
     ctx.fillStyle = "#64748b";
     ctx.font = `10px ${EMOJI_FONT}`;
-    ctx.fillText(locked ? "🔒 Пройди предыдущий" : (L.desc || ""), cx + cardW / 2, cy + cardH * 0.88);
+    ctx.fillText(locked ? "🔒 Пройди предыдущий" : (L.desc || ""), cx + M.cardW / 2, cy + M.cardH * 0.88);
 
     if (locked) {
       ctx.fillStyle = "rgba(0,0,0,0.45)";
-      roundRect(cx, cy, cardW, cardH, 12); ctx.fill();
+      roundRect(cx, cy, M.cardW, M.cardH, 12); ctx.fill();
     } else if (hov) {
       ctx.fillStyle = "#0ea5e9";
-      roundRect(cx + cardW * 0.2, cy + cardH - 26, cardW * 0.6, 20, 6);
+      roundRect(cx + M.cardW * 0.2, cy + M.cardH - 26, M.cardW * 0.6, 20, 6);
       ctx.fill();
       ctx.fillStyle = "#fff";
       ctx.font = `bold 11px ${EMOJI_FONT}`;
-      ctx.fillText("Играть", cx + cardW / 2, cy + cardH - 16);
+      ctx.fillText("Играть", cx + M.cardW / 2, cy + M.cardH - 16);
     }
   }
 
-  const endlessY = Math.min(VH - 52, startY + rows * (cardH + gapY) + gapY + 4);
-  const ex = VW * 0.08, ew = VW * 0.56, eh = 36;
+  const endlessY = M.endlessY;
+  const ex = M.ex, ew = M.ew, eh = M.eh;
   const ehov = menuHoverEndless;
   ctx.fillStyle = ehov ? "#1e3a5f" : "#16253a";
   ctx.strokeStyle = ehov ? "#a78bfa" : "#475569";
@@ -2068,7 +2276,7 @@ function drawMenu() {
   ctx.fillText(`${ENDLESS_SPEC.emoji} ${ENDLESS_SPEC.name}`, ex + ew / 2, endlessY + eh / 2);
   ctx.fillStyle = "#94a3b8";
   ctx.font = `11px ${EMOJI_FONT}`;
-  ctx.fillText(`Рекорд: ${formatTime(saveData.endlessBest)}`, ex + ew + 12, endlessY + eh / 2 + 2);
+  ctx.fillText(`Волны ${saveData.endlessBestWave || 0} · время ${formatTime(saveData.endlessBest)}`, ex + ew + 12, endlessY + eh / 2 + 2);
 
   const gx = VW - 96, gy = 8, gw = 40, gh = 34;
   ctx.fillStyle = menuGearHover ? "#1e3a5f" : "#16253a";
@@ -2330,45 +2538,61 @@ function draw() {
   }
 
   // ── Пули игрока (жёлтые) ──────────────────────────────────────────────────
-  ctx.beginPath();
-  for (const bullet of bullets) {
-    if (!bullet.magicBlast && bullet.owner === "player" && !bullet.iceBullet) {
-      ctx.moveTo(bullet.x + bullet.r, bullet.y);
-      ctx.arc(bullet.x, bullet.y, bullet.r, 0, Math.PI * 2);
+  {
+    let any = false;
+    ctx.beginPath();
+    for (const bullet of bullets) {
+      if (!bullet.magicBlast && bullet.owner === "player" && !bullet.iceBullet) {
+        any = true;
+        ctx.moveTo(bullet.x + bullet.r, bullet.y);
+        ctx.arc(bullet.x, bullet.y, bullet.r, 0, Math.PI * 2);
+      }
     }
+    if (any) { ctx.fillStyle = "#fde047"; ctx.fill(); }
   }
-  if (bullets.some(b => !b.magicBlast && b.owner === "player")) { ctx.fillStyle = "#fde047"; ctx.fill(); }
 
   // ── Пули ботов (оранжевые) ────────────────────────────────────────────────
-  ctx.beginPath();
-  for (const bullet of bullets) {
-    if (!bullet.magicBlast && bullet.owner !== "player" && !bullet.iceBullet) {
-      ctx.moveTo(bullet.x + bullet.r, bullet.y);
-      ctx.arc(bullet.x, bullet.y, bullet.r, 0, Math.PI * 2);
+  {
+    let any = false;
+    ctx.beginPath();
+    for (const bullet of bullets) {
+      if (!bullet.magicBlast && bullet.owner !== "player" && !bullet.iceBullet) {
+        any = true;
+        ctx.moveTo(bullet.x + bullet.r, bullet.y);
+        ctx.arc(bullet.x, bullet.y, bullet.r, 0, Math.PI * 2);
+      }
     }
+    if (any) { ctx.fillStyle = "#fb923c"; ctx.fill(); }
   }
-  if (bullets.some(b => !b.magicBlast && b.owner !== "player" && !b.iceBullet)) { ctx.fillStyle = "#fb923c"; ctx.fill(); }
 
   // ── Ледяные пули (голубые) ────────────────────────────────────────────────
-  ctx.beginPath();
-  for (const bullet of bullets) {
-    if (bullet.iceBullet) {
-      ctx.moveTo(bullet.x + bullet.r, bullet.y);
-      ctx.arc(bullet.x, bullet.y, bullet.r, 0, Math.PI * 2);
+  {
+    let any = false;
+    ctx.beginPath();
+    for (const bullet of bullets) {
+      if (bullet.iceBullet) {
+        any = true;
+        ctx.moveTo(bullet.x + bullet.r, bullet.y);
+        ctx.arc(bullet.x, bullet.y, bullet.r, 0, Math.PI * 2);
+      }
     }
+    if (any) { ctx.fillStyle = "#7dd3fc"; ctx.fill(); }
   }
-  if (bullets.some(b => b.iceBullet)) { ctx.fillStyle = "#7dd3fc"; ctx.fill(); }
 
   // ── Магические снаряды (фиолетовые) ──────────────────────────────────────
-  ctx.beginPath();
-  for (const bullet of bullets) {
-    if (bullet.magicBlast) {
-      const rr = bullet.r + 1;
-      ctx.moveTo(bullet.x + rr, bullet.y);
-      ctx.arc(bullet.x, bullet.y, rr, 0, Math.PI * 2);
+  {
+    let any = false;
+    ctx.beginPath();
+    for (const bullet of bullets) {
+      if (bullet.magicBlast) {
+        any = true;
+        const rr = bullet.r + 1;
+        ctx.moveTo(bullet.x + rr, bullet.y);
+        ctx.arc(bullet.x, bullet.y, rr, 0, Math.PI * 2);
+      }
     }
+    if (any) { ctx.fillStyle = "#a78bfa"; ctx.fill(); }
   }
-  if (bullets.some(b => b.magicBlast)) { ctx.fillStyle = "#a78bfa"; ctx.fill(); }
 
   // ── Удары ─────────────────────────────────────────────────────────────────
   for (const s of slashes) {
@@ -2440,7 +2664,10 @@ function draw() {
     ctx.fillRect(0, 0, VW, 46);
     ctx.fillStyle = "#4ade80";
     ctx.font = `bold 20px ${EMOJI_FONT}`; ctx.textAlign = "center";
-    ctx.fillText(`✅ Уровень пройден! Собирай бонусы — ${t}с`, VW / 2, 28);
+    const msg = endlessActive
+      ? `✅ Волна пройдена! Собирай бонусы — ${t}с`
+      : `✅ Уровень пройден! Собирай бонусы — ${t}с`;
+    ctx.fillText(msg, VW / 2, 28);
     ctx.textAlign = "left";
   }
 
@@ -2533,7 +2760,17 @@ function applyUpgrade(id) {
 }
 
 function advanceLevel() {
-  if (endlessActive) return;
+  if (endlessActive) {
+    endlessWaveIdx++;
+    initEndlessSpawnQueuesForCurrentWave();
+    state = STATE.PLAYING;
+    endlessWaveTime = 0;
+    wonCountdown = 0;
+    player.hp = Math.min(player.maxHp, player.hp + 28);
+    spawnFloater(player.x, player.y - 44, `Волна ${endlessWaveIdx + 1}`, "#7dd3fc");
+    updateHud();
+    return;
+  }
   if (currentLevel + 1 < LEVELS.length) loadLevel(currentLevel + 1);
 }
 
@@ -2549,7 +2786,14 @@ function frame(now) {
 // ── Клавиатура ────────────────────────────────────────────────────────────────
 window.addEventListener("keydown", (e) => {
   if (state === STATE.PAUSED) {
-    if (e.code === "Escape" || e.code === "KeyP") { state = STATE.PLAYING; e.preventDefault(); return; }
+    if (e.code === "Escape" || e.code === "KeyP") {
+      state = STATE.PLAYING;
+      mJoy.active = false; mJoy.dx = 0; mJoy.dy = 0;
+      mAimJoy.active = false; mAimJoy.dx = 0; mAimJoy.dy = 0;
+      mouseLeftHeld = false; mouseRightHeld = false;
+      e.preventDefault();
+      return;
+    }
     if (e.code === "KeyM") { showMenu(); return; }
     return;
   }
@@ -2557,6 +2801,10 @@ window.addEventListener("keydown", (e) => {
   if (e.code === "KeyR") {
     if (state === STATE.LOST) {
       player.hp = player.maxHp;
+      if (endlessActive) {
+        endlessWaveIdx = 0;
+        endlessWallSeed = (Date.now() ^ (Math.random() * 0x7fffffff) | 0) >>> 0;
+      }
       loadLevel(endlessActive ? -1 : currentLevel);
     } else newGame();
     return;
@@ -2568,6 +2816,8 @@ window.addEventListener("keydown", (e) => {
 
   if (state === STATE.PLAYING && (e.code === "Escape" || e.code === "KeyP")) {
     state = STATE.PAUSED;
+    mJoy.active = false; mJoy.dx = 0; mJoy.dy = 0;
+    mAimJoy.active = false; mAimJoy.dx = 0; mAimJoy.dy = 0;
     mouseLeftHeld = false;
     mouseRightHeld = false;
     e.preventDefault();
@@ -2603,13 +2853,27 @@ window.addEventListener("keydown", (e) => {
       }
       return;
     }
-    const menuKey = {
+    const M = getMenuLevelLayout();
+    if (e.code === "ArrowLeft" && M.totalPages > 1) {
+      menuPage = Math.max(0, menuPage - 1);
+      e.preventDefault();
+      return;
+    }
+    if (e.code === "ArrowRight" && M.totalPages > 1) {
+      menuPage = Math.min(M.totalPages - 1, menuPage + 1);
+      e.preventDefault();
+      return;
+    }
+    const rel = {
       Digit1:0,Digit2:1,Digit3:2,Digit4:3,Digit5:4,
       Digit6:5,Digit7:6,Digit8:7,Digit9:8,Digit0:9,
       Numpad1:0,Numpad2:1,Numpad3:2,Numpad4:3,Numpad5:4,
       Numpad6:5,Numpad7:6,Numpad8:7,Numpad9:8,Numpad0:9,
     }[e.code];
-    if (menuKey !== undefined && menuKey < LEVELS.length && menuKey <= saveData.maxUnlocked) startFromLevel(menuKey);
+    if (rel !== undefined) {
+      const globalIdx = M.page * M.cardsPerPage + rel;
+      if (globalIdx < LEVELS.length && globalIdx <= saveData.maxUnlocked) startFromLevel(globalIdx);
+    }
     return;
   }
 
@@ -2627,7 +2891,7 @@ window.addEventListener("keydown", (e) => {
 window.addEventListener("keyup", (e) => { keys.delete(e.code); });
 
 canvas.addEventListener("mousemove", (e) => {
-  const rect = canvas.getBoundingClientRect();
+  const rect = getCanvasRectCss();
   const rw = Math.max(1, rect.width), rh = Math.max(1, rect.height);
 
   if (state === STATE.CHAR_SELECT) {
@@ -2666,37 +2930,52 @@ canvas.addEventListener("mousemove", (e) => {
   // Menu hover
   const x = (e.clientX - rect.left) * (VW / rw);
   const y = (e.clientY - rect.top)  * (VH / rh);
-  menuGearHover = x >= VW - 96 && x <= VW - 56 && y >= 8 && y <= 42;
-  const cols = isMobile ? 3 : 5;
-  const cardW = Math.floor((VW * 0.94 - (cols - 1) * 12) / cols);
-  const cardH = Math.floor(VH * 0.27);
-  const gapX = 12, gapY = Math.floor(VH * 0.025);
-  const totalW = cols * cardW + (cols - 1) * gapX;
-  const startX = (VW - totalW) / 2;
-  const rows = Math.ceil(LEVELS.length / cols);
-  const totalGridH = rows * cardH + (rows - 1) * gapY;
-  const startY = Math.floor((VH - totalGridH) / 2 + 14);
-  const endlessY = Math.min(VH - 52, startY + rows * (cardH + gapY) + gapY + 4);
-  const ex = VW * 0.08, ew = VW * 0.56, eh = 36;
-  menuHoverEndless = x >= ex && x <= ex + ew && y >= endlessY && y <= endlessY + eh;
+  menuGearHover = x >= VW - 100 && x <= VW - 48 && y >= 4 && y <= 46;
+  const M = getMenuLevelLayout();
+  menuHoverEndless = x >= M.ex && x <= M.ex + M.ew && y >= M.endlessY && y <= M.endlessY + M.eh;
+  menuPageHover = 0;
+  if (M.totalPages > 1) {
+    if (x >= M.pageLeftX && x <= M.pageLeftX + M.arrowW && y >= M.startY && y <= M.startY + M.arrowH) menuPageHover = -1;
+    else if (x >= M.pageRightX && x <= M.pageRightX + M.arrowW && y >= M.startY && y <= M.startY + M.arrowH) menuPageHover = 1;
+  }
   let found = -1;
-  if (!menuHoverEndless && !menuGearHover) {
-    for (let i = 0; i < LEVELS.length; i++) {
-      const col = i % cols, row = Math.floor(i / cols);
-      const cx = startX + col * (cardW + gapX);
-      const cy = startY + row * (cardH + gapY);
-      if (x >= cx && x <= cx + cardW && y >= cy && y <= cy + cardH) { found = i; break; }
+  if (!menuHoverEndless && !menuGearHover && !menuPageHover) {
+    const startIdx = M.page * M.cardsPerPage;
+    for (let k = 0; k < M.cardsPerPage; k++) {
+      const i = startIdx + k;
+      if (i >= LEVELS.length) break;
+      const col = k % M.cols, row = Math.floor(k / M.cols);
+      const cx = M.startX + col * (M.cardW + M.gapX);
+      const cy = M.startY + row * (M.cardH + M.gapY);
+      if (x >= cx && x <= cx + M.cardW && y >= cy && y <= cy + M.cardH) { found = i; break; }
     }
   }
   menuHoverIdx = found;
-  canvas.style.cursor = (found >= 0 || menuHoverEndless || menuGearHover) ? "pointer" : "default";
+  canvas.style.cursor = (found >= 0 || menuHoverEndless || menuGearHover || menuPageHover !== 0) ? "pointer" : "default";
 });
 
 canvas.addEventListener("click", (e) => {
-  const rect = canvas.getBoundingClientRect();
+  const rect = getCanvasRectCss();
   const rw = Math.max(1, rect.width), rh = Math.max(1, rect.height);
   const x = (e.clientX - rect.left) * (VW / rw);
   const y = (e.clientY - rect.top)  * (VH / rh);
+
+  if (state === STATE.WON) {
+    const opts = getAvailableUpgrades();
+    const cardW = 260, cardH = 140, gapX = 24;
+    const totalW = opts.length * cardW + (opts.length - 1) * gapX;
+    const startX = (VW - totalW) / 2;
+    const cardY  = VH / 2 - cardH / 2 + 36;
+    for (let i = 0; i < opts.length; i++) {
+      const cx = startX + i * (cardW + gapX);
+      if (x >= cx && x <= cx + cardW && y >= cardY && y <= cardY + cardH) {
+        applyUpgrade(opts[i].id);
+        advanceLevel();
+        return;
+      }
+    }
+    return;
+  }
 
   if (state === STATE.CHAR_SELECT) {
     // "Играть →" button
@@ -2728,9 +3007,9 @@ canvas.addEventListener("click", (e) => {
   }
 
   if (state !== STATE.MENU) return;
-  // «← Герой» кнопка
-  if (x >= 14 && x <= 14 + 130 && y >= 10 && y <= 10 + 34) { showCharSelect(); return; }
-  if (x >= VW - 96 && x <= VW - 56 && y >= 8 && y <= 42) { settingsOpen = !settingsOpen; refreshMusicVolume(); return; }
+  // «← Герой» кнопка (чуть расширенная зона нажатия)
+  if (x >= 6 && x <= 154 && y >= 4 && y <= 46) { showCharSelect(); return; }
+  if (x >= VW - 100 && x <= VW - 48 && y >= 4 && y <= 46) { settingsOpen = !settingsOpen; refreshMusicVolume(); return; }
 
   if (settingsOpen) {
     const px = (VW - 320) / 2, py = (VH - 220) / 2, pw = 320, ph = 220;
@@ -2753,26 +3032,37 @@ canvas.addEventListener("click", (e) => {
     return;
   }
 
-  const cols = isMobile ? 3 : 5;
-  const cardW = Math.floor((VW * 0.94 - (cols - 1) * 12) / cols);
-  const cardH = Math.floor(VH * 0.27);
-  const gapX = 12, gapY = Math.floor(VH * 0.025);
-  const totalW = cols * cardW + (cols - 1) * gapX;
-  const startX = (VW - totalW) / 2;
-  const rows = Math.ceil(LEVELS.length / cols);
-  const totalGridH = rows * cardH + (rows - 1) * gapY;
-  const startY = Math.floor((VH - totalGridH) / 2 + 14);
-  const endlessY = Math.min(VH - 52, startY + rows * (cardH + gapY) + gapY + 4);
-  const ex = VW * 0.08, ew = VW * 0.56, eh = 36;
-  if (x >= ex && x <= ex + ew && y >= endlessY && y <= endlessY + eh) { startEndless(); return; }
-  for (let i = 0; i < LEVELS.length; i++) {
+  const M = getMenuLevelLayout();
+  if (M.totalPages > 1) {
+    if (x >= M.pageLeftX && x <= M.pageLeftX + M.arrowW && y >= M.startY && y <= M.startY + M.arrowH) {
+      menuPage = Math.max(0, menuPage - 1);
+      return;
+    }
+    if (x >= M.pageRightX && x <= M.pageRightX + M.arrowW && y >= M.startY && y <= M.startY + M.arrowH) {
+      menuPage = Math.min(M.totalPages - 1, menuPage + 1);
+      return;
+    }
+  }
+  if (x >= M.ex && x <= M.ex + M.ew && y >= M.endlessY && y <= M.endlessY + M.eh) { startEndless(); return; }
+  const startIdx = M.page * M.cardsPerPage;
+  for (let k = 0; k < M.cardsPerPage; k++) {
+    const i = startIdx + k;
+    if (i >= LEVELS.length) break;
     if (i > saveData.maxUnlocked) continue;
-    const col = i % cols, row = Math.floor(i / cols);
-    const cx = startX + col * (cardW + gapX);
-    const cy = startY + row * (cardH + gapY);
-    if (x >= cx && x <= cx + cardW && y >= cy && y <= cy + cardH) { startFromLevel(i); return; }
+    const col = k % M.cols, row = Math.floor(k / M.cols);
+    const cx = M.startX + col * (M.cardW + M.gapX);
+    const cy = M.startY + row * (M.cardH + M.gapY);
+    if (x >= cx && x <= cx + M.cardW && y >= cy && y <= cy + M.cardH) { startFromLevel(i); return; }
   }
 });
+
+canvas.addEventListener("wheel", (e) => {
+  if (state !== STATE.MENU || settingsOpen) return;
+  const M = getMenuLevelLayout();
+  if (M.totalPages <= 1) return;
+  e.preventDefault();
+  menuPage = Math.max(0, Math.min(M.totalPages - 1, menuPage + (e.deltaY > 0 ? 1 : -1)));
+}, { passive: false });
 
 canvas.addEventListener("mousedown", (e) => {
   if (state !== STATE.PLAYING) return;
@@ -2793,7 +3083,15 @@ if (isMobile) {
     for (const btn of mobBtns) {
       const dx = cx - btn.ax, dy = cy - btn.ay;
       if (dx*dx + dy*dy <= btn.r * btn.r) {
-        if (btn.id === "pause") { if (state === STATE.PLAYING) state = STATE.PAUSED; return true; }
+        if (btn.id === "pause") {
+          if (state === STATE.PLAYING) {
+            state = STATE.PAUSED;
+            mJoy.active = false; mJoy.dx = 0; mJoy.dy = 0;
+            mAimJoy.active = false; mAimJoy.dx = 0; mAimJoy.dy = 0;
+            mouseLeftHeld = false;
+          }
+          return true;
+        }
         if (btn.id === "menu") { showMenu(); return true; }
       }
     }
@@ -2837,6 +3135,9 @@ if (isMobile) {
       const { x, y } = scaledTouch(e.changedTouches[0]);
       if (handleMobBtn(x, y)) return;
       state = STATE.PLAYING;
+      mJoy.active = false; mJoy.dx = 0; mJoy.dy = 0;
+      mAimJoy.active = false; mAimJoy.dx = 0; mAimJoy.dy = 0;
+      mouseLeftHeld = false;
       return;
     }
 
@@ -2848,7 +3149,13 @@ if (isMobile) {
       const b1X = (VW - totalBW) / 2;
       const b2X = b1X + bW + gap;
       if (x >= b1X && x <= b1X + bW && y >= bY && y <= bY + bH) {
-        player.hp = player.maxHp; loadLevel(endlessActive ? -1 : currentLevel); return;
+        player.hp = player.maxHp;
+        if (endlessActive) {
+          endlessWaveIdx = 0;
+          endlessWallSeed = (Date.now() ^ (Math.random() * 0x7fffffff) | 0) >>> 0;
+        }
+        loadLevel(endlessActive ? -1 : currentLevel);
+        return;
       }
       if (x >= b2X && x <= b2X + bW && y >= bY && y <= bY + bH) { showMenu(); return; }
       return;
@@ -2856,8 +3163,8 @@ if (isMobile) {
 
     if (state === STATE.MENU) {
       const { x, y } = scaledTouch(e.changedTouches[0]);
-      if (x >= 14 && x <= 14 + 130 && y >= 10 && y <= 10 + 34) { showCharSelect(); return; }
-      if (x >= VW - 96 && x <= VW - 56 && y >= 8 && y <= 42) { settingsOpen = !settingsOpen; refreshMusicVolume(); return; }
+      if (x >= 6 && x <= 154 && y >= 4 && y <= 46) { showCharSelect(); return; }
+      if (x >= VW - 100 && x <= VW - 48 && y >= 4 && y <= 46) { settingsOpen = !settingsOpen; refreshMusicVolume(); return; }
       if (settingsOpen) {
         const px = (VW - 320) / 2, py = (VH - 220) / 2, pw = 320, ph = 220;
         if (x < px || x > px + pw || y < py || y > py + ph) { settingsOpen = false; return; }
@@ -2878,24 +3185,27 @@ if (isMobile) {
         }
         return;
       }
-      const cols = isMobile ? 3 : 5;
-      const cardW = Math.floor((VW * 0.94 - (cols - 1) * 12) / cols);
-      const cardH = Math.floor(VH * 0.27);
-      const gapX = 12, gapY = Math.floor(VH * 0.025);
-      const totalW = cols * cardW + (cols - 1) * gapX;
-      const startX = (VW - totalW) / 2;
-      const rows = Math.ceil(LEVELS.length / cols);
-      const totalGridH = rows * cardH + (rows - 1) * gapY;
-      const startY = Math.floor((VH - totalGridH) / 2 + 14);
-      const endlessY = Math.min(VH - 52, startY + rows * (cardH + gapY) + gapY + 4);
-      const ex = VW * 0.08, ew = VW * 0.56, eh = 36;
-      if (x >= ex && x <= ex + ew && y >= endlessY && y <= endlessY + eh) { startEndless(); return; }
-      for (let i = 0; i < LEVELS.length; i++) {
+      const M = getMenuLevelLayout();
+      if (M.totalPages > 1) {
+        if (x >= M.pageLeftX && x <= M.pageLeftX + M.arrowW && y >= M.startY && y <= M.startY + M.arrowH) {
+          menuPage = Math.max(0, menuPage - 1);
+          return;
+        }
+        if (x >= M.pageRightX && x <= M.pageRightX + M.arrowW && y >= M.startY && y <= M.startY + M.arrowH) {
+          menuPage = Math.min(M.totalPages - 1, menuPage + 1);
+          return;
+        }
+      }
+      if (x >= M.ex && x <= M.ex + M.ew && y >= M.endlessY && y <= M.endlessY + M.eh) { startEndless(); return; }
+      const startIdx = M.page * M.cardsPerPage;
+      for (let k = 0; k < M.cardsPerPage; k++) {
+        const i = startIdx + k;
+        if (i >= LEVELS.length) break;
         if (i > saveData.maxUnlocked) continue;
-        const col = i % cols, row = Math.floor(i / cols);
-        const cx = startX + col * (cardW + gapX);
-        const cy = startY + row * (cardH + gapY);
-        if (x >= cx && x <= cx + cardW && y >= cy && y <= cy + cardH) { startFromLevel(i); return; }
+        const col = k % M.cols, row = Math.floor(k / M.cols);
+        const cx = M.startX + col * (M.cardW + M.gapX);
+        const cy = M.startY + row * (M.cardH + M.gapY);
+        if (x >= cx && x <= cx + M.cardW && y >= cy && y <= cy + M.cardH) { startFromLevel(i); return; }
       }
       return;
     }
