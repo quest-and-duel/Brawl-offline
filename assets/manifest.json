@@ -1,6 +1,15 @@
 {
   "version": 1,
-  "sprites": [],
-  "music": [],
+  "sprites": [
+    { "id": "char_hero", "src": "sprites/char_hero.png" }
+  ],
+  "music": [
+    { "id": "track_fluffing", "src": "music/fluffing_duck.mp3" },
+    { "id": "track_monkeys", "src": "music/monkeys.mp3" },
+    { "id": "track_sneaky_adv", "src": "music/sneaky_adventure.mp3" },
+    { "id": "track_sneaky_snitch", "src": "music/sneaky_snitch.mp3" },
+    { "id": "track_silly_intro", "src": "music/silly_intro.mp3" },
+    { "id": "track_investigations", "src": "music/investigations.mp3" }
+  ],
   "sfx": []
 }

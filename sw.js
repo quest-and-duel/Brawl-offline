@@ -1,9 +1,9 @@
 /* Minimal offline shell for GitHub Pages */
-const CORE = ["./", "./index.html", "./js/game.js", "./css/style.css", "./assets/manifest.json"];
+const CORE = ["./", "./index.html", "./js/game.js", "./css/style.css", "./assets/manifest.json", "./assets/sprites/char_hero.png"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open("brawl-v1").then((cache) => cache.addAll(CORE)).then(() => self.skipWaiting())
+    caches.open("brawl-v2").then((cache) => cache.addAll(CORE)).then(() => self.skipWaiting())
   );
 });
 
@@ -20,7 +20,7 @@ self.addEventListener("fetch", (event) => {
       return fetch(request).then((res) => {
         const copy = res.clone();
         if (res.ok && res.url.includes(self.location.origin)) {
-          caches.open("brawl-v1").then((c) => c.put(request, copy)).catch(() => {});
+          caches.open("brawl-v2").then((c) => c.put(request, copy)).catch(() => {});
         }
         return res;
       });

@@ -93,6 +93,14 @@ let menuHoverEndless = false;
 let menuGearHover = false;
 let charHoverIdx = -1;
 
+/** Спрайт игрока на арене (фото главного героя) */
+const HERO_SPRITE_KEY = "char_hero";
+
+function getHeroSpriteImg() {
+  const im = ASSET_IMGS[HERO_SPRITE_KEY];
+  return im && im.complete && im.naturalWidth > 0 ? im : null;
+}
+
 /** Выбранный персонаж (ключ в CHARACTERS), сохраняется на всю кампанию */
 let selectedChar = "specops";
 
@@ -112,7 +120,7 @@ const PLAYER = {
 const CHARACTERS = {
   lumberjack: {
     id: "lumberjack",
-    spriteKey: "char_lumberjack",
+    spriteKey: HERO_SPRITE_KEY,
     name: "Дровосек",
     emoji: "🪓",
     color: "#84cc16",
@@ -124,7 +132,7 @@ const CHARACTERS = {
   },
   sniper: {
     id: "sniper",
-    spriteKey: "char_sniper",
+    spriteKey: HERO_SPRITE_KEY,
     name: "Снайпер",
     emoji: "🎯",
     color: "#06b6d4",
@@ -136,7 +144,7 @@ const CHARACTERS = {
   },
   hunter: {
     id: "hunter",
-    spriteKey: "char_hunter",
+    spriteKey: HERO_SPRITE_KEY,
     name: "Охотник",
     emoji: "🏹",
     color: "#f97316",
@@ -148,7 +156,7 @@ const CHARACTERS = {
   },
   minigunner: {
     id: "minigunner",
-    spriteKey: "char_minigunner",
+    spriteKey: HERO_SPRITE_KEY,
     name: "Миниганщик",
     emoji: "🌀",
     color: "#a855f7",
@@ -160,7 +168,7 @@ const CHARACTERS = {
   },
   specops: {
     id: "specops",
-    spriteKey: "char_specops",
+    spriteKey: HERO_SPRITE_KEY,
     name: "Спецназовец",
     emoji: "🪖",
     color: "#3b82f6",
@@ -591,7 +599,7 @@ const LEVELS = [
 
 const ENDLESS_SPEC = {
   name: "∞ Бесконечная арена",
-  desc: "5 волн по 30с, затем бесконечный финал",
+  desc: "Случайная карта из 5 · волны по 30с",
   emoji: "♾️",
   w: 1280, h: 720,
   walls: [],
@@ -601,6 +609,120 @@ const ENDLESS_SPEC = {
   endless: true,
 };
 
+function endlessArenaBorder(W, H) {
+  const t = 22, m = 48;
+  return [
+    { x: m, y: m, w: W - m * 2, h: t },
+    { x: m, y: H - m - t, w: W - m * 2, h: t },
+    { x: m, y: m, w: t, h: H - m * 2 },
+    { x: W - m - t, y: m, w: t, h: H - m * 2 },
+  ];
+}
+
+/** 5 карт бесконечного режима — при старте выбирается одна случайно */
+const ENDLESS_ARENAS = [
+  {
+    id: "ring",
+    name: "Круговая арена",
+    emoji: "🏟",
+    w: 1280, h: 720,
+    spawn: { rx: 0.5, ry: 0.5 },
+    walls: [
+      ...endlessArenaBorder(1280, 720),
+      { x: 520, y: 110, w: 64, h: 64 }, { x: 696, y: 110, w: 64, h: 64 },
+      { x: 868, y: 195, w: 58, h: 58 }, { x: 948, y: 328, w: 64, h: 64 },
+      { x: 868, y: 468, w: 58, h: 58 }, { x: 696, y: 546, w: 64, h: 64 },
+      { x: 520, y: 546, w: 64, h: 64 }, { x: 348, y: 468, w: 58, h: 58 },
+      { x: 268, y: 328, w: 64, h: 64 }, { x: 348, y: 195, w: 58, h: 58 },
+    ],
+  },
+  {
+    id: "maze",
+    name: "Лабиринт",
+    emoji: "🔀",
+    w: 1280, h: 720,
+    spawn: { rx: 0.5, ry: 0.86 },
+    walls: [
+      ...endlessArenaBorder(1280, 720),
+      { x: 368, y: 96, w: 24, h: 240 }, { x: 368, y: 408, w: 24, h: 216 },
+      { x: 888, y: 96, w: 24, h: 216 }, { x: 888, y: 368, w: 24, h: 256 },
+      { x: 368, y: 332, w: 520, h: 22 },
+      { x: 188, y: 96, w: 22, h: 220 }, { x: 1070, y: 400, w: 22, h: 224 },
+      { x: 520, y: 96, w: 240, h: 22 }, { x: 520, y: 602, w: 240, h: 22 },
+    ],
+  },
+  {
+    id: "ruins",
+    name: "Руины",
+    emoji: "🏛",
+    w: 1280, h: 720,
+    spawn: { rx: 0.5, ry: 0.52 },
+    walls: [
+      ...endlessArenaBorder(1280, 720),
+      { x: 140, y: 140, w: 180, h: 28 }, { x: 140, y: 140, w: 28, h: 160 },
+      { x: 960, y: 120, w: 200, h: 28 }, { x: 1132, y: 120, w: 28, h: 200 },
+      { x: 120, y: 520, w: 220, h: 28 }, { x: 120, y: 420, w: 28, h: 128 },
+      { x: 940, y: 500, w: 240, h: 28 }, { x: 1152, y: 380, w: 28, h: 148 },
+      { x: 420, y: 180, w: 90, h: 90 }, { x: 770, y: 200, w: 110, h: 24 },
+      { x: 580, y: 420, w: 120, h: 120 }, { x: 300, y: 340, w: 24, h: 140 },
+      { x: 820, y: 480, w: 160, h: 24 },
+    ],
+  },
+  {
+    id: "cross",
+    name: "Крест",
+    emoji: "✚",
+    w: 1280, h: 720,
+    spawn: { rx: 0.5, ry: 0.5 },
+    walls: [
+      ...endlessArenaBorder(1280, 720),
+      { x: 608, y: 88, w: 64, h: 544 },
+      { x: 188, y: 328, w: 904, h: 64 },
+    ],
+  },
+  {
+    id: "warehouse",
+    name: "Склады",
+    emoji: "📦",
+    w: 1280, h: 720,
+    spawn: { rx: 0.5, ry: 0.5 },
+    walls: [
+      ...endlessArenaBorder(1280, 720),
+      { x: 220, y: 160, w: 140, h: 100 }, { x: 520, y: 160, w: 140, h: 100 },
+      { x: 820, y: 160, w: 140, h: 100 },
+      { x: 220, y: 320, w: 140, h: 100 }, { x: 820, y: 320, w: 140, h: 100 },
+      { x: 220, y: 480, w: 140, h: 100 }, { x: 520, y: 480, w: 140, h: 100 },
+      { x: 820, y: 480, w: 140, h: 100 },
+      { x: 400, y: 300, w: 24, h: 120 }, { x: 856, y: 300, w: 24, h: 120 },
+    ],
+  },
+];
+
+function pickEndlessMap() {
+  endlessMapIdx = Math.floor(Math.random() * ENDLESS_ARENAS.length);
+}
+
+function getEndlessArena() {
+  return ENDLESS_ARENAS[endlessMapIdx] ?? ENDLESS_ARENAS[0];
+}
+
+function buildEndlessLevelDef() {
+  const arena = getEndlessArena();
+  return {
+    ...ENDLESS_SPEC,
+    name: `${ENDLESS_SPEC.name} · ${arena.name}`,
+    emoji: arena.emoji || ENDLESS_SPEC.emoji,
+    w: arena.w,
+    h: arena.h,
+    walls: arena.walls,
+    spawn: arena.spawn,
+    spawnZones: arena.spawnZones,
+    bots: [],
+    drops: true,
+    endless: true,
+  };
+}
+
 /** Базовые 5 волн (30 с); волны с индексом ≥5 — повтор 5-й + бонус к гоблинам/скелетам */
 const ENDLESS_WAVE_BASE = [
   { duration: 30, spawns: [{ kind: "goblin", total: 14 }, { kind: "melee", total: 5 }] },
@@ -609,45 +731,6 @@ const ENDLESS_WAVE_BASE = [
   { duration: 30, spawns: [{ kind: "melee", total: 8 }, { kind: "mage2", total: 2 }, { kind: "ranger", total: 5 }] },
   { duration: 30, spawns: [{ kind: "goblin", total: 14 }, { kind: "skeleton", total: 12 }, { kind: "wolf", total: 5 }] },
 ];
-
-function mulberry32(seed) {
-  return function rand() {
-    let t = (seed += 0x6d2b79f5);
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-function generateEndlessWalls(W, H, seed) {
-  const rand = mulberry32((seed >>> 0) || 1);
-  const walls = [];
-  const t = 22;
-  walls.push(
-    { x: 48, y: 48, w: W - 96, h: t },
-    { x: 48, y: H - 48 - t, w: W - 96, h: t },
-    { x: 48, y: 48, w: t, h: H - 96 },
-    { x: W - 48 - t, y: 48, w: t, h: H - 96 },
-  );
-  const margin = 90;
-  const innerW = W - margin * 2;
-  const innerH = H - margin * 2;
-  const cx0 = W * 0.35, cy0 = H * 0.35, cw = W * 0.3, ch = H * 0.3;
-  const pillars = 12 + Math.floor(rand() * 9);
-  for (let i = 0; i < pillars; i++) {
-    const ww = 32 + Math.floor(rand() * 88);
-    const wh = 32 + Math.floor(rand() * 88);
-    for (let attempt = 0; attempt < 30; attempt++) {
-      const x = margin + rand() * Math.max(8, innerW - ww);
-      const y = margin + rand() * Math.max(8, innerH - wh);
-      if (x + ww < cx0 || x > cx0 + cw || y + wh < cy0 || y > cy0 + ch) {
-        walls.push({ x, y, w: ww, h: wh });
-        break;
-      }
-    }
-  }
-  return walls;
-}
 
 function getEndlessWaveConfig(waveIdx) {
   const idx = Math.min(4, Math.max(0, waveIdx));
@@ -662,6 +745,8 @@ function getEndlessWaveConfig(waveIdx) {
 }
 
 function endlessDefaultSpawnZones() {
+  const arena = getEndlessArena();
+  if (arena.spawnZones?.length) return arena.spawnZones.map((z) => ({ ...z }));
   const m = 48;
   return [
     { x: m, y: m, w: W - m * 2, h: 72 },
@@ -722,7 +807,7 @@ let saveData = {
 let runStats = { kills: 0, damageDealt: 0, damageTaken: 0, pickups: 0, levelTime: 0 };
 let endlessActive = false;
 let nextBotUid = 1;
-let endlessWallSeed = 1;
+let endlessMapIdx = 0;
 let endlessWaveIdx = 0;
 let endlessWaveTime = 0;
 let endlessWaveDuration = 30;
@@ -740,6 +825,7 @@ let camShakeMag = 0;
 const ASSET_IMGS = Object.create(null);
 let _musicEl = null;
 let _curMusicId = null;
+let _musicPoolIds = [];
 let _sfxCtx = null;
 const _sfxBuffers = Object.create(null);
 
@@ -809,14 +895,56 @@ function setMusicTrack(trackId) {
   if (!url || _curMusicId === trackId) return;
   _curMusicId = trackId;
   try { if (_musicEl) _musicEl.pause(); } catch (_) {}
-  _musicEl = new Audio(url);
-  _musicEl.loop = true;
-  _musicEl.volume = saveData.musicVol * saveData.masterVol;
-  _musicEl.play().catch(() => {});
+  const el = new Audio(url);
+  el.loop = true;
+  el.volume = saveData.musicVol * saveData.masterVol;
+  el.addEventListener("ended", () => {
+    if (_musicEl !== el || saveData.muted) return;
+    try {
+      el.currentTime = 0;
+      el.play().catch(() => {});
+    } catch (_) {}
+  });
+  _musicEl = el;
+  el.play().catch(() => {});
 }
 
 function refreshMusicVolume() {
   if (_musicEl) _musicEl.volume = saveData.musicVol * saveData.masterVol * (saveData.muted ? 0 : 1);
+}
+
+function pickRandomMusicTrack(excludeId) {
+  const pool = _musicPoolIds.filter((id) => ASSET_IMGS.__music?.[id]);
+  if (!pool.length) return null;
+  if (pool.length === 1) return pool[0];
+  let pick = pool[Math.floor(Math.random() * pool.length)];
+  if (pick === excludeId) {
+    const rest = pool.filter((id) => id !== excludeId);
+    pick = rest[Math.floor(Math.random() * rest.length)] ?? pick;
+  }
+  return pick;
+}
+
+function playRandomMusic() {
+  const id = pickRandomMusicTrack(_curMusicId);
+  if (id) setMusicTrack(id);
+}
+
+function onLevelCompletedMusic() {
+  playRandomMusic();
+}
+
+function getSettingsOverlayLayout() {
+  const pw = 320, ph = 248;
+  const px = (VW - pw) / 2;
+  const py = (VH - ph) / 2;
+  const bx = px + 40, bw = 240, bh = 36;
+  const by = py + 188;
+  return {
+    px, py, pw, ph, bx, by, bw, bh,
+    muteY0: py + 54, muteY1: py + 82,
+    volY0: py + 100, volY1: py + 178,
+  };
 }
 
 async function loadAssets() {
@@ -831,18 +959,40 @@ async function loadAssets() {
   const total = Math.max(1, items.length);
   let done = 0;
   ASSET_IMGS.__music = Object.create(null);
+  const spriteVer = "v=2";
   for (const s of manifest.sprites || []) {
     await new Promise((resolve) => {
       const im = new Image();
-      im.onload = () => { ASSET_IMGS[s.id] = im; done++; loadProgress = done / total; resolve(); };
+      im.onload = () => {
+        im.decode().catch(() => {}).finally(() => {
+          ASSET_IMGS[s.id] = im;
+          done++;
+          loadProgress = done / total;
+          resolve();
+        });
+      };
       im.onerror = () => { done++; loadProgress = done / total; resolve(); };
-      im.src = base + s.src;
+      im.src = `${base}${s.src}?${spriteVer}`;
+    });
+  }
+  if (!ASSET_IMGS[HERO_SPRITE_KEY]) {
+    await new Promise((resolve) => {
+      const im = new Image();
+      im.onload = () => {
+        im.decode().catch(() => {}).finally(() => {
+          ASSET_IMGS[HERO_SPRITE_KEY] = im;
+          resolve();
+        });
+      };
+      im.onerror = () => resolve();
+      im.src = `${base}sprites/char_hero.png?${spriteVer}`;
     });
   }
   for (const m of manifest.music || []) {
-    ASSET_IMGS.__music[m.id] = base + m.src;
+    ASSET_IMGS.__music[m.id] = `${base}${m.src}?v=1`;
     done++; loadProgress = done / total;
   }
+  _musicPoolIds = (manifest.music || []).map((m) => m.id);
   for (const x of manifest.sfx || []) {
     try {
       const ctx = getAudioCtx();
@@ -915,7 +1065,6 @@ function showMenu() {
   canvas.width = VW; canvas.height = VH;
   W = VW; H = VH; camX = 0; camY = 0;
   if (isMobile) buildMobBtns();
-  setMusicTrack("menu");
 }
 
 function showCharSelect() {
@@ -927,6 +1076,7 @@ function showCharSelect() {
 
 function newGame() {
   showCharSelect();
+  playRandomMusic();
 }
 
 function startFromLevel(idx) {
@@ -961,7 +1111,7 @@ function startFromLevel(idx) {
 function startEndless() {
   endlessActive = true;
   endlessWaveIdx = 0;
-  endlessWallSeed = (Date.now() ^ (Math.random() * 0x7fffffff) | 0) >>> 0;
+  pickEndlessMap();
   const ch = CHARACTERS[selectedChar] || CHARACTERS.specops;
   PLAYER.speed    = ch.speed;
   PLAYER.maxHp    = ch.maxHp;
@@ -1028,7 +1178,7 @@ function buildBackground(w, h, levelWalls) {
 }
 
 function loadLevel(idx) {
-  const L = (idx === -1 && endlessActive) ? ENDLESS_SPEC : LEVELS[idx];
+  const L = (idx === -1 && endlessActive) ? buildEndlessLevelDef() : LEVELS[idx];
   if (!L) return;
   if (idx === -1 && endlessActive) currentLevel = -1;
   else currentLevel = idx;
@@ -1045,10 +1195,12 @@ function loadLevel(idx) {
   W = L.w; H = L.h; camX = 0; camY = 0;
 
   if (idx === -1 && endlessActive) {
-    walls = generateEndlessWalls(W, H, endlessWallSeed).map((w) => ({ ...w }));
+    walls = L.walls.map((w) => ({ ...w }));
     levelWaveTimers = [];
     endlessWaveTime = 0;
     initEndlessSpawnQueuesForCurrentWave();
+    const arena = getEndlessArena();
+    spawnFloater(W / 2, H * 0.34, `${arena.emoji} ${arena.name}`, "#7dd3fc");
   } else {
     walls = L.walls.map((w) => ({ ...w }));
     levelWaveTimers = (L.waves || []).map((w) => ({
@@ -1086,16 +1238,14 @@ function loadLevel(idx) {
   for (const b of bots) resolveWalls(b, b.type.r);
 
   const isBossLevel = !!(L.boss || (L.bots || []).some((bb) => bb.kind === "ice_king"));
-  if (L.endless) setMusicTrack(ASSET_IMGS.__music?.endless ? "endless" : "level");
-  else if (isBossLevel) setMusicTrack("boss");
-  else setMusicTrack("level");
+  void isBossLevel;
 
   elState.textContent = "";
   updateHud();
 }
 
 function getCurrentLevelDef() {
-  if (currentLevel < 0 && endlessActive) return ENDLESS_SPEC;
+  if (currentLevel < 0 && endlessActive) return buildEndlessLevelDef();
   return LEVELS[currentLevel];
 }
 
@@ -1846,6 +1996,7 @@ function update(dt) {
     if (endlessWaveTime >= endlessWaveDuration) {
       wonCountdown = 3;
       endlessWaveCompletePending = true;
+      onLevelCompletedMusic();
       saveData.endlessBestWave = Math.max(saveData.endlessBestWave || 0, endlessWaveIdx + 1);
       persistSave();
       spawnFloater(W / 2, H * 0.48, "Волна завершена — бонусы!", "#4ade80");
@@ -1987,9 +2138,11 @@ function update(dt) {
       saveData.endlessBestWave = Math.max(saveData.endlessBestWave || 0, endlessWaveIdx + 1);
       persistSave();
     }
+    if (state !== STATE.LOST) onLevelCompletedMusic();
     state = STATE.LOST;
   } else if (bots.length === 0 && allWavesDone() && time > 0.3 && wonCountdown <= 0) {
     wonCountdown = 3.0;
+    onLevelCompletedMusic();
     spawnFloater(W / 2, H * 0.5, "Собирай бонусы!", "#4ade80");
   }
 
@@ -2145,6 +2298,27 @@ function wrapText(text, x, y, maxW, lh) {
   if (line) ctx.fillText(line.trim(), x, yy);
 }
 
+function wrapTextCenter(text, cx, y, maxW, lh) {
+  const words = text.split(" ");
+  const lines = [];
+  let line = "";
+  for (const w of words) {
+    const test = line ? `${line} ${w}` : w;
+    if (ctx.measureText(test).width > maxW && line) {
+      lines.push(line);
+      line = w;
+    } else line = test;
+  }
+  if (line) lines.push(line);
+  ctx.textAlign = "center";
+  ctx.textBaseline = "top";
+  let yy = y;
+  for (const ln of lines) {
+    ctx.fillText(ln, cx, yy);
+    yy += lh;
+  }
+}
+
 function getMenuLevelLayout() {
   const cols = isMobile ? 2 : 4;
   const rows = 2;
@@ -2192,7 +2366,7 @@ function drawMenu() {
   ctx.font = `14px ${EMOJI_FONT}`;
   ctx.fillStyle = "#64748b";
   const ch = CHARACTERS[selectedChar];
-  ctx.fillText(`Персонаж: ${ch?.emoji ?? ""} ${ch?.name ?? ""} · Страница: стрелки / колёсико · Уровни 1–8 на странице`, W / 2, 76);
+  ctx.fillText(`Персонаж: ${ch?.name ?? ""} · Страница: стрелки / колёсико · Уровни 1–8 на странице`, W / 2, 76);
 
   const M = getMenuLevelLayout();
   const startIdx = M.page * M.cardsPerPage;
@@ -2294,31 +2468,46 @@ function drawMenu() {
 }
 
 function drawSettingsOverlay() {
+  const S = getSettingsOverlayLayout();
+  const { px, py, pw, ph, bx, by, bw, bh } = S;
   ctx.fillStyle = "rgba(0,0,0,0.65)";
   ctx.fillRect(0, 0, VW, VH);
-  const px = (VW - 320) / 2, py = (VH - 220) / 2, pw = 320, ph = 220;
   ctx.fillStyle = "#1e293b";
   roundRect(px, py, pw, ph, 14); ctx.fill();
   ctx.strokeStyle = "#64748b"; ctx.lineWidth = 2;
   roundRect(px, py, pw, ph, 14); ctx.stroke();
+
+  const cx = px + pw / 2;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  const m = saveData.muted ? "Выкл" : "Вкл";
+
   ctx.fillStyle = "#f8fafc";
   ctx.font = `bold 20px ${EMOJI_FONT}`;
-  ctx.textAlign = "center";
-  ctx.fillText("Настройки", px + pw / 2, py + 36);
+  ctx.fillText("Настройки", cx, py + 32);
+
   ctx.font = `14px ${EMOJI_FONT}`;
   ctx.fillStyle = "#cbd5e1";
-  const m = saveData.muted ? "Выкл" : "Вкл";
-  ctx.fillText(`Звук: ${m}  ·  G или тап «Mute»`, px + pw / 2, py + 68);
-  ctx.fillText(`Мастер ${Math.round(saveData.masterVol * 100)}%`, px + pw / 2, py + 96);
-  ctx.fillText(`Музыка ${Math.round(saveData.musicVol * 100)}%`, px + pw / 2, py + 120);
-  ctx.fillText(`SFX ${Math.round(saveData.sfxVol * 100)}%`, px + pw / 2, py + 144);
-  const bx = px + 40, by = py + 160, bw = 240, bh = 36;
+  ctx.fillText(`Звук: ${m}`, cx, py + 68);
+  ctx.fillStyle = "#94a3b8";
+  ctx.font = `12px ${EMOJI_FONT}`;
+  ctx.fillText("G или тап — mute", cx, py + 92);
+  ctx.font = `14px ${EMOJI_FONT}`;
+  ctx.fillStyle = "#cbd5e1";
+  ctx.fillText(`Мастер ${Math.round(saveData.masterVol * 100)}%`, cx, py + 118);
+  ctx.fillText(`Музыка ${Math.round(saveData.musicVol * 100)}%`, cx, py + 144);
+  ctx.fillText(`SFX ${Math.round(saveData.sfxVol * 100)}%`, cx, py + 170);
+  ctx.fillStyle = "#64748b";
+  ctx.font = `11px ${EMOJI_FONT}`;
+  ctx.fillText("Тап слева / справа от центра — тише / громче", cx, py + 192);
+
   ctx.fillStyle = "#334155";
   roundRect(bx, by, bw, bh, 8); ctx.fill();
   ctx.fillStyle = "#e2e8f0";
   ctx.font = `bold 14px ${EMOJI_FONT}`;
-  ctx.fillText("Закрыть (Esc)", px + pw / 2, by + bh / 2 + 5);
+  ctx.fillText("Закрыть (Esc)", cx, by + bh / 2);
   ctx.textAlign = "left";
+  ctx.textBaseline = "alphabetic";
 }
 
 function drawCharSelect() {
@@ -2367,21 +2556,24 @@ function drawCharSelect() {
     ctx.textAlign = "left"; ctx.textBaseline = "top";
     ctx.fillText(`${i + 1}`, cx + 10, cy + 8);
 
-    ctx.font = `bold 40px ${EMOJI_FONT}`;
-    ctx.textAlign = "center"; ctx.textBaseline = "middle";
-    ctx.fillText(ch.emoji, cx + cardW / 2, cy + cardH * 0.30);
+    const portraitR = Math.min(44, Math.floor(cardW * 0.17));
+    drawSpriteEntity(
+      cx + cardW / 2, cy + cardH * 0.30, portraitR,
+      getHeroSpriteImg(), ch.emoji, 0,
+    );
 
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
     ctx.fillStyle = selected ? ch.color : "#f1f5f9";
     ctx.font = `bold 16px ${EMOJI_FONT}`;
-    ctx.fillText(ch.name, cx + cardW / 2, cy + cardH * 0.54);
+    ctx.fillText(ch.name, cx + cardW / 2, cy + cardH * 0.52);
 
     ctx.fillStyle = "#94a3b8";
     ctx.font = `11px ${EMOJI_FONT}`;
-    ctx.fillText(ch.desc, cx + cardW / 2, cy + cardH * 0.68);
+    wrapTextCenter(ch.desc, cx + cardW / 2, cy + cardH * 0.60, cardW - 20, 14);
 
     ctx.fillStyle = "#64748b";
     ctx.font = `10px ${EMOJI_FONT}`;
-    wrapText(ch.hint, cx + 12, cy + cardH * 0.77, cardW - 24, 14);
+    wrapTextCenter(ch.hint, cx + cardW / 2, cy + cardH * 0.74, cardW - 20, 13);
 
     if (selected) {
       ctx.fillStyle = ch.color;
@@ -2486,8 +2678,7 @@ function draw() {
 
   drawHealthBar(player.x, player.y - PLAYER.r - 14, 44, 4, player.hp / player.maxHp);
   {
-    const ch = CHARACTERS[selectedChar];
-    drawSpriteEntity(player.x, player.y, PLAYER.r, ch?.spriteKey ? ASSET_IMGS[ch.spriteKey] : null, PLAYER.emoji, player.hitFlash);
+    drawSpriteEntity(player.x, player.y, PLAYER.r, getHeroSpriteImg(), PLAYER.emoji, player.hitFlash);
   }
 
   // ── Индикатор патронов (дуга вокруг игрока) ───────────────────────────────
@@ -2803,7 +2994,7 @@ window.addEventListener("keydown", (e) => {
       player.hp = player.maxHp;
       if (endlessActive) {
         endlessWaveIdx = 0;
-        endlessWallSeed = (Date.now() ^ (Math.random() * 0x7fffffff) | 0) >>> 0;
+        pickEndlessMap();
       }
       loadLevel(endlessActive ? -1 : currentLevel);
     } else newGame();
@@ -3012,12 +3203,12 @@ canvas.addEventListener("click", (e) => {
   if (x >= VW - 100 && x <= VW - 48 && y >= 4 && y <= 46) { settingsOpen = !settingsOpen; refreshMusicVolume(); return; }
 
   if (settingsOpen) {
-    const px = (VW - 320) / 2, py = (VH - 220) / 2, pw = 320, ph = 220;
+    const S = getSettingsOverlayLayout();
+    const { px, py, pw, ph, bx, by, bw, bh, muteY0, muteY1, volY0, volY1 } = S;
     if (x < px || x > px + pw || y < py || y > py + ph) { settingsOpen = false; return; }
-    if (y >= py + 52 && y <= py + 80) { saveData.muted = !saveData.muted; persistSave(); refreshMusicVolume(); return; }
-    const bx = px + 40, by = py + 160, bw = 240, bh = 36;
+    if (y >= muteY0 && y <= muteY1) { saveData.muted = !saveData.muted; persistSave(); refreshMusicVolume(); return; }
     if (x >= bx && x <= bx + bw && y >= by && y <= by + bh) { settingsOpen = false; return; }
-    if (y >= py + 88 && y <= py + 154) {
+    if (y >= volY0 && y <= volY1) {
       if (x < px + pw / 2) {
         saveData.masterVol = Math.max(0, saveData.masterVol - 0.1);
         saveData.musicVol = Math.max(0, saveData.musicVol - 0.1);
@@ -3152,7 +3343,7 @@ if (isMobile) {
         player.hp = player.maxHp;
         if (endlessActive) {
           endlessWaveIdx = 0;
-          endlessWallSeed = (Date.now() ^ (Math.random() * 0x7fffffff) | 0) >>> 0;
+          pickEndlessMap();
         }
         loadLevel(endlessActive ? -1 : currentLevel);
         return;
@@ -3166,12 +3357,12 @@ if (isMobile) {
       if (x >= 6 && x <= 154 && y >= 4 && y <= 46) { showCharSelect(); return; }
       if (x >= VW - 100 && x <= VW - 48 && y >= 4 && y <= 46) { settingsOpen = !settingsOpen; refreshMusicVolume(); return; }
       if (settingsOpen) {
-        const px = (VW - 320) / 2, py = (VH - 220) / 2, pw = 320, ph = 220;
+        const S = getSettingsOverlayLayout();
+        const { px, py, pw, ph, bx, by, bw, bh, muteY0, muteY1, volY0, volY1 } = S;
         if (x < px || x > px + pw || y < py || y > py + ph) { settingsOpen = false; return; }
-        if (y >= py + 52 && y <= py + 80) { saveData.muted = !saveData.muted; persistSave(); refreshMusicVolume(); return; }
-        const bx = px + 40, by = py + 160, bw = 240, bh = 36;
+        if (y >= muteY0 && y <= muteY1) { saveData.muted = !saveData.muted; persistSave(); refreshMusicVolume(); return; }
         if (x >= bx && x <= bx + bw && y >= by && y <= by + bh) { settingsOpen = false; return; }
-        if (y >= py + 88 && y <= py + 154) {
+        if (y >= volY0 && y <= volY1) {
           if (x < px + pw / 2) {
             saveData.masterVol = Math.max(0, saveData.masterVol - 0.1);
             saveData.musicVol = Math.max(0, saveData.musicVol - 0.1);
