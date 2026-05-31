@@ -201,8 +201,10 @@ async function main() {
     /* ignore */
   }
 
+  const nextRev = Math.max(Number(prev.assetsRev) || 0, Number(prev.version) || 0, 0) + 1;
   const manifest = {
-    version: 1,
+    version: nextRev,
+    assetsRev: nextRev,
     generatedAt: new Date().toISOString(),
     sprites: (cfg.images || []).length ? [] : (prev.sprites || []),
     music: [],

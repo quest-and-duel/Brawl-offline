@@ -28,16 +28,237 @@ const mJoy    = { active: false, id: -1, baseX: 0, baseY: 0, dx: 0, dy: 0 };
 const mAimJoy = { active: false, id: -1, baseX: 0, baseY: 0, dx: 0, dy: 0 };
 
 function mobBtnRadius() {
-  return VW < 520 ? 46 : 36;
+  return isMobile ? 52 : 36;
 }
 let mobBtns = [];
 
 function buildMobBtns() {
   const r = mobBtnRadius();
+  const ay = 62;
   mobBtns = [
-    { id: "pause", label: "⏸", ax: VW - 100, ay: 52, r },
-    { id: "menu", label: "M", ax: VW - 52, ay: 52, r },
+    { id: "pause", label: "⏸", ax: VW - 112, ay, r },
+    { id: "menu", label: "M", ax: VW - 54, ay, r },
   ];
+}
+
+const MOB_HIT_PAD = 16;
+
+function clientToCanvas(clientX, clientY) {
+  const rect = getCanvasRectCss();
+  const rw = Math.max(1, rect.width);
+  const rh = Math.max(1, rect.height);
+  return {
+    x: (clientX - rect.left) * (canvas.width / rw),
+    y: (clientY - rect.top) * (canvas.height / rh),
+  };
+}
+
+function hitRect(px, py, x, y, w, h, pad = MOB_HIT_PAD) {
+  return px >= x - pad && px <= x + w + pad && py >= y - pad && py <= y + h + pad;
+}
+
+function getMenuHeroBtnRect() {
+  return { x: 8, y: 6, w: 142, h: 42 };
+}
+
+function getMenuGearBtnRect() {
+  return { x: VW - 112, y: 4, w: 60, h: 42 };
+}
+
+function getMenuSkinsBtnRect() {
+  return { x: 156, y: 6, w: 118, h: 42 };
+}
+
+function getSkinSelectLayout() {
+  const arrowW = isMobile ? 64 : 44;
+  const arrowH = isMobile ? 80 : 64;
+  const previewW = Math.min(340, VW - (isMobile ? 40 : arrowW * 2 + 72));
+  const previewH = Math.min(isMobile ? 300 : 360, VH * (isMobile ? 0.42 : 0.5));
+  const centerY = isMobile ? VH * 0.4 : VH * 0.46;
+  const previewX = (VW - previewW) / 2;
+  const previewY = centerY - previewH / 2;
+  const arrowY = centerY - arrowH / 2;
+  const mobRowY = VH - (isMobile ? 118 : 0);
+  const mobArrowW = isMobile ? 88 : 0;
+  const mobArrowH = isMobile ? 64 : 0;
+  return {
+    previewX, previewY, previewW, previewH,
+    arrowLeftX: isMobile ? 12 : previewX - arrowW - 14,
+    arrowRightX: isMobile ? VW - 12 - arrowW : previewX + previewW + 14,
+    arrowY: isMobile ? mobRowY : arrowY,
+    arrowW, arrowH,
+    mobLeftX: 16,
+    mobRightX: VW - 16 - mobArrowW,
+    mobArrowY: mobRowY,
+    mobArrowW,
+    mobArrowH,
+    useMobArrows: isMobile,
+    backBtn: { x: 8, y: 6, w: 132, h: 42 },
+    doneBtn: getCharSelectPlayBtnRect(),
+  };
+}
+
+function drawSkinPreviewFrame(x, y, w, h, img, emojiFallback) {
+  ctx.fillStyle = "#111e2e";
+  roundRect(x, y, w, h, 16);
+  ctx.fill();
+  ctx.strokeStyle = "#38bdf8";
+  ctx.lineWidth = 2.5;
+  roundRect(x, y, w, h, 16);
+  ctx.stroke();
+  const pad = 8;
+  const ix = x + pad, iy = y + pad, iw = w - pad * 2, ih = h - pad * 2;
+  if (img && img.complete && img.naturalWidth > 0) {
+    ctx.save();
+    roundRect(ix, iy, iw, ih, 12);
+    ctx.clip();
+    const scale = Math.max(iw / img.naturalWidth, ih / img.naturalHeight);
+    const dw = img.naturalWidth * scale;
+    const dh = img.naturalHeight * scale;
+    ctx.drawImage(img, ix + iw / 2 - dw / 2, iy + ih / 2 - dh / 2, dw, dh);
+    ctx.restore();
+  } else {
+    ctx.fillStyle = "#64748b";
+    ctx.font = `bold 64px ${EMOJI_FONT}`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(emojiFallback || "?", x + w / 2, y + h / 2);
+  }
+}
+
+function showSkinSelect(returnTo) {
+  skinReturnState = returnTo ?? (state === STATE.CHAR_SELECT ? STATE.CHAR_SELECT : STATE.MENU);
+  state = STATE.SKIN_SELECT;
+  skinArrowHover = 0;
+  canvas.width = VW;
+  canvas.height = VH;
+  W = VW;
+  H = VH;
+  camX = 0;
+  camY = 0;
+}
+
+function leaveSkinSelect() {
+  persistSave();
+  if (skinReturnState === STATE.CHAR_SELECT) showCharSelect();
+  else showMenu();
+}
+
+function skinSelectArrowDir(x, y, L) {
+  if (L.useMobArrows) {
+    if (hitRect(x, y, L.mobLeftX, L.mobArrowY, L.mobArrowW, L.mobArrowH, 10)) return -1;
+    if (hitRect(x, y, L.mobRightX, L.mobArrowY, L.mobArrowW, L.mobArrowH, 10)) return 1;
+    return 0;
+  }
+  if (hitRect(x, y, L.arrowLeftX, L.arrowY, L.arrowW, L.arrowH, 12)) return -1;
+  if (hitRect(x, y, L.arrowRightX, L.arrowY, L.arrowW, L.arrowH, 12)) return 1;
+  return 0;
+}
+
+function handleSkinSelectPointer(x, y) {
+  const L = getSkinSelectLayout();
+  if (hitRect(x, y, L.backBtn.x, L.backBtn.y, L.backBtn.w, L.backBtn.h)) {
+    leaveSkinSelect();
+    return true;
+  }
+  if (hitRect(x, y, L.doneBtn.x, L.doneBtn.y, L.doneBtn.w, L.doneBtn.h)) {
+    leaveSkinSelect();
+    return true;
+  }
+  const ad = skinSelectArrowDir(x, y, L);
+  if (ad === -1) { cycleSkin(-1); return true; }
+  if (ad === 1) { cycleSkin(1); return true; }
+  return false;
+}
+
+function getCharSelectPlayBtnRect() {
+  const w = Math.min(300, VW - 40);
+  const h = 52;
+  return { x: (VW - w) / 2, y: VH - 68, w, h };
+}
+
+function getWonUpgradeLayout() {
+  const opts = Object.values(UPGRADES);
+  if (isMobile) {
+    const cardW = VW - 56;
+    const cardH = 86;
+    const gapY = 12;
+    const startX = (VW - cardW) / 2;
+    let y = 126;
+    const cards = opts.map((u, index) => {
+      const card = { u, index, x: startX, y, w: cardW, h: cardH };
+      y += cardH + gapY;
+      return card;
+    });
+    return { stacked: true, cards };
+  }
+  const cardW = 260, cardH = 140, gapX = 24;
+  const totalW = opts.length * cardW + (opts.length - 1) * gapX;
+  const startX = (VW - totalW) / 2;
+  const cardY = VH / 2 - cardH / 2 + 36;
+  const cards = opts.map((u, index) => ({
+    u, index, x: startX + index * (cardW + gapX), y: cardY, w: cardW, h: cardH,
+  }));
+  return { stacked: false, cards };
+}
+
+function getLostBtnLayout() {
+  const bH = isMobile ? 52 : 46;
+  if (isMobile) {
+    const bW = Math.min(300, VW - 48);
+    const bX = (VW - bW) / 2;
+    const bY1 = VH / 2 + 56;
+    return [
+      { x: bX, y: bY1, w: bW, h: bH, action: "retry" },
+      { x: bX, y: bY1 + bH + 14, w: bW, h: bH, action: "menu" },
+    ];
+  }
+  const bW = 200, gap = 16;
+  const totalBW = bW * 2 + gap;
+  const bY = VH / 2 + 78;
+  const b1X = (VW - totalBW) / 2;
+  return [
+    { x: b1X, y: bY, w: bW, h: bH, action: "retry" },
+    { x: b1X + bW + gap, y: bY, w: bW, h: bH, action: "menu" },
+  ];
+}
+
+let _fsRequested = false;
+
+function tryEnterMobileFullscreen() {
+  if (!isMobile) return;
+  document.documentElement.classList.add("mobile-game");
+  document.body.classList.add("mobile-game");
+  const hint = document.getElementById("fs-hint");
+  if (hint) hint.hidden = false;
+  if (_fsRequested) return;
+  _fsRequested = true;
+  const el = document.documentElement;
+  const req = el.requestFullscreen?.() || el.webkitRequestFullscreen?.();
+  if (req && typeof req.then === "function") {
+    req.then(() => document.documentElement.classList.add("fs-active")).catch(() => {});
+  }
+}
+
+function setupMobileFullscreenUi() {
+  if (!isMobile) return;
+  document.documentElement.classList.add("mobile-game");
+  document.body.classList.add("mobile-game");
+  const hint = document.getElementById("fs-hint");
+  if (hint) {
+    hint.hidden = false;
+    hint.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      tryEnterMobileFullscreen();
+    });
+  }
+  document.addEventListener("fullscreenchange", () => {
+    invalidateCanvasRect();
+    if (document.fullscreenElement) document.documentElement.classList.add("fs-active");
+    else document.documentElement.classList.remove("fs-active");
+  });
+  window.addEventListener("resize", invalidateCanvasRect);
 }
 
 let _canvasRectCache = null;
@@ -55,31 +276,174 @@ function getCanvasRectCss() {
 }
 window.addEventListener("resize", invalidateCanvasRect);
 
-// Кешируем медиа-запрос — проверяется при каждом тач-событии
-const _portraitRotatedMQ = window.matchMedia('(orientation: portrait) and (pointer: coarse)');
-
 function scaledTouch(touch) {
-  const rect = getCanvasRectCss();
-  if (_portraitRotatedMQ.matches) {
-    const scaleX = canvas.width  / Math.max(1, rect.height);
-    const scaleY = canvas.height / Math.max(1, rect.width);
-    return {
-      x: (touch.clientY - rect.top)   * scaleX,
-      y: (rect.right - touch.clientX) * scaleY,
-    };
+  return clientToCanvas(touch.clientX, touch.clientY);
+}
+
+function handleSettingsPointer(x, y) {
+  if (!settingsOpen) return false;
+  const S = getSettingsOverlayLayout();
+  const { px, py, pw, ph, bx, by, bw, bh, muteY0, muteY1, langY0, langY1, volY0, volY1 } = S;
+  if (x < px - MOB_HIT_PAD || x > px + pw + MOB_HIT_PAD || y < py - MOB_HIT_PAD || y > py + ph + MOB_HIT_PAD) {
+    settingsOpen = false;
+    return true;
   }
-  const scaleX = canvas.width  / Math.max(1, rect.width);
-  const scaleY = canvas.height / Math.max(1, rect.height);
-  return {
-    x: (touch.clientX - rect.left) * scaleX,
-    y: (touch.clientY - rect.top)  * scaleY,
-  };
+  if (y >= muteY0 - MOB_HIT_PAD && y <= muteY1 + MOB_HIT_PAD) {
+    saveData.muted = !saveData.muted;
+    persistSave();
+    refreshMusicVolume();
+    return true;
+  }
+  if (y >= langY0 - MOB_HIT_PAD && y <= langY1 + MOB_HIT_PAD) {
+    toggleLanguage();
+    return true;
+  }
+  if (hitRect(x, y, bx, by, bw, bh, 8)) {
+    settingsOpen = false;
+    return true;
+  }
+  if (y >= volY0 - MOB_HIT_PAD && y <= volY1 + MOB_HIT_PAD) {
+    if (x < px + pw / 2) {
+      saveData.masterVol = Math.max(0, saveData.masterVol - 0.1);
+      saveData.musicVol = Math.max(0, saveData.musicVol - 0.1);
+      saveData.sfxVol = Math.max(0, saveData.sfxVol - 0.1);
+    } else {
+      saveData.masterVol = Math.min(1, saveData.masterVol + 0.1);
+      saveData.musicVol = Math.min(1, saveData.musicVol + 0.1);
+      saveData.sfxVol = Math.min(1, saveData.sfxVol + 0.1);
+    }
+    persistSave();
+    refreshMusicVolume();
+    return true;
+  }
+  return true;
+}
+
+function handleMenuPointer(x, y) {
+  const hero = getMenuHeroBtnRect();
+  if (hitRect(x, y, hero.x, hero.y, hero.w, hero.h)) {
+    showCharSelect();
+    return true;
+  }
+  const skinsBtn = getMenuSkinsBtnRect();
+  if (hitRect(x, y, skinsBtn.x, skinsBtn.y, skinsBtn.w, skinsBtn.h)) {
+    showSkinSelect(STATE.MENU);
+    return true;
+  }
+  const gear = getMenuGearBtnRect();
+  if (hitRect(x, y, gear.x, gear.y, gear.w, gear.h)) {
+    settingsOpen = !settingsOpen;
+    refreshMusicVolume();
+    return true;
+  }
+  if (settingsOpen && handleSettingsPointer(x, y)) return true;
+
+  const M = getMenuLevelLayout();
+  if (M.totalPages > 1) {
+    if (hitRect(x, y, M.pageLeftX, M.startY, M.arrowW, M.arrowH, 10)) {
+      menuPage = Math.max(0, menuPage - 1);
+      return true;
+    }
+    if (hitRect(x, y, M.pageRightX, M.startY, M.arrowW, M.arrowH, 10)) {
+      menuPage = Math.min(M.totalPages - 1, menuPage + 1);
+      return true;
+    }
+  }
+  if (hitRect(x, y, M.endlessHitX, M.endlessY, M.endlessHitW, M.eh, 8)) {
+    startEndless();
+    return true;
+  }
+  const startIdx = M.page * M.cardsPerPage;
+  for (let k = 0; k < M.cardsPerPage; k++) {
+    const i = startIdx + k;
+    if (i >= LEVELS.length) break;
+    if (i > saveData.maxUnlocked) continue;
+    const col = k % M.cols, row = Math.floor(k / M.cols);
+    const cx = M.startX + col * (M.cardW + M.gapX);
+    const cy = M.startY + row * (M.cardH + M.gapY);
+    if (hitRect(x, y, cx, cy, M.cardW, M.cardH, 6)) {
+      startFromLevel(i);
+      return true;
+    }
+  }
+  return false;
+}
+
+function handleCharSelectPointer(x, y) {
+  const skinBtn = { x: VW - 128, y: 10, w: 112, h: 34 };
+  if (hitRect(x, y, skinBtn.x, skinBtn.y, skinBtn.w, skinBtn.h)) {
+    showSkinSelect(STATE.CHAR_SELECT);
+    return true;
+  }
+  const play = getCharSelectPlayBtnRect();
+  if (hitRect(x, y, play.x, play.y, play.w, play.h)) {
+    showMenu();
+    return true;
+  }
+  const charIds = Object.keys(CHARACTERS);
+  const cols = Math.min(3, charIds.length);
+  const cardW = Math.floor((VW * 0.92 - (cols - 1) * 16) / cols);
+  const cardH = Math.floor(VH * 0.38);
+  const gapX = 16, gapY = Math.floor(VH * 0.04);
+  const rows = Math.ceil(charIds.length / cols);
+  const totalGridH = rows * cardH + (rows - 1) * gapY;
+  const startY = Math.floor((VH - totalGridH) / 2 + 10);
+  for (let i = 0; i < charIds.length; i++) {
+    const col = i % cols, row = Math.floor(i / cols);
+    const rowCount = Math.min(cols, charIds.length - row * cols);
+    const rowW = rowCount * cardW + (rowCount - 1) * gapX;
+    const rowStartX = (VW - rowW) / 2;
+    const cx = rowStartX + col * (cardW + gapX);
+    const cy = startY + row * (cardH + gapY);
+    if (hitRect(x, y, cx, cy, cardW, cardH, 8)) {
+      selectedChar = charIds[i];
+      persistSave();
+      showMenu();
+      return true;
+    }
+  }
+  return false;
+}
+
+function handleWonPointer(x, y) {
+  const { cards } = getWonUpgradeLayout();
+  for (const c of cards) {
+    if (hitRect(x, y, c.x, c.y, c.w, c.h, 10)) {
+      applyUpgrade(c.u.id);
+      advanceLevel();
+      return true;
+    }
+  }
+  return false;
+}
+
+function handleLostPointer(x, y) {
+  for (const b of getLostBtnLayout()) {
+    if (!hitRect(x, y, b.x, b.y, b.w, b.h, 10)) continue;
+    if (b.action === "retry") {
+      player.hp = player.maxHp;
+      if (endlessActive) {
+        endlessWaveIdx = 0;
+        pickEndlessMap();
+      }
+      loadLevel(endlessActive ? -1 : currentLevel);
+    } else {
+      showMenu();
+    }
+    return true;
+  }
+  return false;
+}
+
+function isMobUiZone(x, y) {
+  return x > VW - 140 && y < 130;
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
 const STATE = {
   LOADING: "loading",
   CHAR_SELECT: "char_select",
+  SKIN_SELECT: "skin_select",
   MENU: "menu",
   PLAYING: "playing",
   PAUSED: "paused",
@@ -88,6 +452,84 @@ const STATE = {
   CLEARED: "cleared",
 };
 let state = STATE.LOADING;
+
+const I18N = {
+  ru: {
+    settings: "Настройки",
+    sound: "Звук",
+    on: "Вкл",
+    off: "Выкл",
+    muteHint: "G или тап — mute",
+    language: "Язык",
+    langRu: "Русский",
+    langEn: "English",
+    langTap: "Тап — сменить язык",
+    master: "Мастер",
+    music: "Музыка",
+    sfx: "SFX",
+    volHint: "Тап слева / справа — тише / громче",
+    close: "Закрыть (Esc)",
+    menuHero: "← Герой",
+    menuSkins: "🎭 Скины",
+    skinTitle: "🎭  Выбор скина",
+    skinHint: "◀ ▶ — листать · Esc — назад",
+    skinBack: "← Назад",
+    skinDone: "Готово ✓",
+    charSkins: "🎭 Скины",
+    charTitle: "🎮  Выбор персонажа",
+    levelPick: "⚔️  Выбор уровня",
+    progressSave: "прогресс сохраняется автоматически",
+    pause: "Пауза",
+    pauseTap: "Тап по экрану — продолжить",
+    levelCleared: "✓ Пройден",
+    levelLocked: "🔒 Пройди предыдущий",
+    play: "Играть",
+    playGo: "Играть →",
+  },
+  en: {
+    settings: "Settings",
+    sound: "Sound",
+    on: "On",
+    off: "Off",
+    muteHint: "G or tap — mute",
+    language: "Language",
+    langRu: "Russian",
+    langEn: "English",
+    langTap: "Tap to change language",
+    master: "Master",
+    music: "Music",
+    sfx: "SFX",
+    volHint: "Tap left / right — quieter / louder",
+    close: "Close (Esc)",
+    menuHero: "← Hero",
+    menuSkins: "🎭 Skins",
+    skinTitle: "🎭  Pick a skin",
+    skinHint: "◀ ▶ — browse · Esc — back",
+    skinBack: "← Back",
+    skinDone: "Done ✓",
+    charSkins: "🎭 Skins",
+    charTitle: "🎮  Choose character",
+    levelPick: "⚔️  Level select",
+    progressSave: "progress saves automatically",
+    pause: "Paused",
+    pauseTap: "Tap screen — resume",
+    levelCleared: "✓ Cleared",
+    levelLocked: "🔒 Beat previous level",
+    play: "Play",
+    playGo: "Play →",
+  },
+};
+
+function t(key) {
+  const pack = I18N[saveData.lang === "en" ? "en" : "ru"];
+  return pack[key] ?? I18N.ru[key] ?? key;
+}
+
+function toggleLanguage() {
+  saveData.lang = saveData.lang === "en" ? "ru" : "en";
+  persistSave();
+}
+
 let menuHoverIdx = -1;
 let menuHoverEndless = false;
 let menuGearHover = false;
@@ -96,9 +538,39 @@ let charHoverIdx = -1;
 /** Спрайт игрока на арене (фото главного героя) */
 const HERO_SPRITE_KEY = "char_hero";
 
+const SKINS = [
+  { id: "elon", name: "Илон", spriteKey: "skin_elon" },
+  { id: "mrbeast", name: "MrBeast", spriteKey: "skin_mrbeast" },
+  { id: "emoji", name: "Смайл", spriteKey: "skin_emoji" },
+  { id: "nagiev", name: "Нагиев", spriteKey: "skin_nagiev" },
+];
+
+let selectedSkinIdx = 0;
+let skinArrowHover = 0;
+/** Куда вернуться из меню скинов */
+let skinReturnState = STATE.MENU;
+
+function getSkinSpriteImg(idx = selectedSkinIdx) {
+  const skin = SKINS[idx];
+  if (!skin) return null;
+  const im = ASSET_IMGS[skin.spriteKey];
+  if (im && im.complete && im.naturalWidth > 0) return im;
+  const fallback = ASSET_IMGS[HERO_SPRITE_KEY];
+  return fallback && fallback.complete && fallback.naturalWidth > 0 ? fallback : null;
+}
+
 function getHeroSpriteImg() {
-  const im = ASSET_IMGS[HERO_SPRITE_KEY];
-  return im && im.complete && im.naturalWidth > 0 ? im : null;
+  return getSkinSpriteImg(selectedSkinIdx);
+}
+
+function setSelectedSkinById(id) {
+  const idx = SKINS.findIndex((s) => s.id === id);
+  if (idx >= 0) selectedSkinIdx = idx;
+}
+
+function cycleSkin(delta) {
+  selectedSkinIdx = (selectedSkinIdx + delta + SKINS.length) % SKINS.length;
+  persistSave();
 }
 
 /** Выбранный персонаж (ключ в CHARACTERS), сохраняется на всю кампанию */
@@ -209,6 +681,12 @@ const WEAPONS = {
   minigun: { fireCd: 0.1,  bullets: 1, spread: 0.08, baseDamage: 5,  label: "Миниган 🌀" },
 };
 
+/** Зацикленные звуки стрельбы (пока зажата кнопка огня) */
+const WEAPON_LOOP_SFX = {
+  assault: "shoot_assault",
+  minigun_char: "shoot_minigun",
+};
+
 const BOT_TYPES = {
   ranger: {
     kind: "ranger", r: 16, speed: 95, maxHp: 60, fireCd: 0.9,
@@ -223,9 +701,11 @@ const BOT_TYPES = {
     color: "#a855f7", stroke: "#e9d5ff", emoji: "👹",
   },
   boss: {
-    kind: "boss", r: 38, speed: 75, maxHp: 500, attackCd: 1.2,
-    attackRange: 12, attackDamage: 60, aggroRange: 1400,
+    kind: "boss", r: 38, speed: 75, maxHp: 1250, attackCd: 1.2,
+    attackRange: 12, attackDamage: 150, aggroRange: 1400,
     reactTime: 0.5, regenDelay: 6, regenRate: 5,
+    fireCd: 0.85, bulletSpeed: 320, bulletDamage: 30,
+    spriteKey: "bot_boss",
     color: "#7c2d12", stroke: "#fbbf24", emoji: "👺", summonEvery: 15,
   },
   mage: {
@@ -793,9 +1273,12 @@ let hudHasMage = false;
 let hudHasIceKing = false;
 let hudIceKingHp = 0;
 
-const SAVE_KEY = "brawl-save-v2";
+const SAVE_KEY = "brawl-save-v3";
+const SAVE_KEY_LEGACY = "brawl-save-v2";
 let saveData = {
   maxUnlocked: 0,
+  levelsCleared: [],
+  campaignCleared: false,
   endlessBest: 0,
   endlessBestWave: 0,
   masterVol: 1,
@@ -803,7 +1286,67 @@ let saveData = {
   sfxVol: 0.55,
   muted: false,
   selChar: "specops",
+  selectedSkin: "elon",
+  lang: "ru",
+  savedAt: 0,
 };
+
+function applySaveObject(o) {
+  if (!o || typeof o !== "object") return;
+  if (typeof o.maxUnlocked === "number") {
+    saveData.maxUnlocked = Math.max(0, Math.min(LEVELS.length - 1, o.maxUnlocked));
+  }
+  if (Array.isArray(o.levelsCleared)) {
+    saveData.levelsCleared = o.levelsCleared
+      .filter((n) => Number.isInteger(n) && n >= 0 && n < LEVELS.length);
+  }
+  if (typeof o.campaignCleared === "boolean") saveData.campaignCleared = o.campaignCleared;
+  if (typeof o.endlessBest === "number") saveData.endlessBest = o.endlessBest;
+  if (typeof o.endlessBestWave === "number") saveData.endlessBestWave = o.endlessBestWave;
+  if (typeof o.masterVol === "number") saveData.masterVol = o.masterVol;
+  if (typeof o.musicVol === "number") saveData.musicVol = o.musicVol;
+  if (typeof o.sfxVol === "number") saveData.sfxVol = o.sfxVol;
+  if (typeof o.muted === "boolean") saveData.muted = o.muted;
+  if (o.selChar && CHARACTERS[o.selChar]) selectedChar = o.selChar;
+  if (o.selectedSkin) setSelectedSkinById(o.selectedSkin);
+  if (o.lang === "en" || o.lang === "ru") saveData.lang = o.lang;
+  reconcileSaveProgress();
+}
+
+function reconcileSaveProgress() {
+  if (!Array.isArray(saveData.levelsCleared)) saveData.levelsCleared = [];
+  for (const idx of saveData.levelsCleared) {
+    if (idx + 1 < LEVELS.length) {
+      saveData.maxUnlocked = Math.max(saveData.maxUnlocked, idx + 1);
+    }
+  }
+  if (saveData.campaignCleared || saveData.levelsCleared.length >= LEVELS.length) {
+    saveData.campaignCleared = true;
+    saveData.maxUnlocked = LEVELS.length - 1;
+  }
+}
+
+function markLevelCleared(idx) {
+  if (idx < 0 || idx >= LEVELS.length) return;
+  if (!saveData.levelsCleared.includes(idx)) {
+    saveData.levelsCleared.push(idx);
+    saveData.levelsCleared.sort((a, b) => a - b);
+  }
+  if (idx + 1 < LEVELS.length) {
+    saveData.maxUnlocked = Math.max(saveData.maxUnlocked, idx + 1);
+  } else {
+    saveData.campaignCleared = true;
+    saveData.maxUnlocked = LEVELS.length - 1;
+  }
+}
+
+function isLevelCleared(idx) {
+  return saveData.levelsCleared.includes(idx);
+}
+
+function countClearedLevels() {
+  return saveData.levelsCleared.length;
+}
 let runStats = { kills: 0, damageDealt: 0, damageTaken: 0, pickups: 0, levelTime: 0 };
 let endlessActive = false;
 let nextBotUid = 1;
@@ -828,28 +1371,37 @@ let _curMusicId = null;
 let _musicPoolIds = [];
 let _sfxCtx = null;
 const _sfxBuffers = Object.create(null);
+const _sfxUrls = Object.create(null);
+let _weaponLoopEl = null;
+let _weaponLoopSfxId = null;
 
 function loadSave() {
   try {
-    const raw = localStorage.getItem(SAVE_KEY);
+    let raw = localStorage.getItem(SAVE_KEY);
+    if (!raw) raw = localStorage.getItem(SAVE_KEY_LEGACY);
     if (!raw) return;
-    const o = JSON.parse(raw);
-    if (typeof o.maxUnlocked === "number") saveData.maxUnlocked = Math.max(0, Math.min(LEVELS.length - 1, o.maxUnlocked));
-    if (typeof o.endlessBest === "number") saveData.endlessBest = o.endlessBest;
-    if (typeof o.endlessBestWave === "number") saveData.endlessBestWave = o.endlessBestWave;
-    if (typeof o.masterVol === "number") saveData.masterVol = o.masterVol;
-    if (typeof o.musicVol === "number") saveData.musicVol = o.musicVol;
-    if (typeof o.sfxVol === "number") saveData.sfxVol = o.sfxVol;
-    if (typeof o.muted === "boolean") saveData.muted = o.muted;
-    if (o.selChar && CHARACTERS[o.selChar]) selectedChar = o.selChar;
+    applySaveObject(JSON.parse(raw));
+    persistSave();
   } catch (_) { /* ignore */ }
 }
 
 function persistSave() {
   saveData.selChar = selectedChar;
+  saveData.selectedSkin = SKINS[selectedSkinIdx]?.id ?? "elon";
+  saveData.savedAt = Date.now();
+  reconcileSaveProgress();
   try {
     localStorage.setItem(SAVE_KEY, JSON.stringify(saveData));
   } catch (_) { /* ignore */ }
+}
+
+function setupAutoSave() {
+  const flush = () => persistSave();
+  window.addEventListener("beforeunload", flush);
+  window.addEventListener("pagehide", flush);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") flush();
+  });
 }
 
 function resetRunStats() {
@@ -864,6 +1416,30 @@ function addCamShake(mag, dur) {
 function getAudioCtx() {
   if (!_sfxCtx) _sfxCtx = new (window.AudioContext || window.webkitAudioContext)();
   return _sfxCtx;
+}
+
+/** Один выстрел — новый звук на каждый выстрел; maxDurationSec обрезает длинный клип */
+function playSfxShot(sfxId, maxDurationSec = 0) {
+  if (saveData.muted || !sfxId) return;
+  try {
+    const ctx = getAudioCtx();
+    if (ctx.state === "suspended") ctx.resume();
+  } catch (_) { /* ignore */ }
+  const url = _sfxUrls[sfxId];
+  if (url) {
+    const el = new Audio(url);
+    el.volume = weaponLoopVolume();
+    el.play().catch(() => {});
+    if (maxDurationSec > 0) {
+      const ms = maxDurationSec * 1000;
+      const stopTimer = setTimeout(() => {
+        try { el.pause(); el.currentTime = 0; } catch (_) { /* ignore */ }
+      }, ms);
+      el.addEventListener("ended", () => clearTimeout(stopTimer), { once: true });
+    }
+    return;
+  }
+  playSfx(sfxId);
 }
 
 function playSfx(name) {
@@ -881,6 +1457,67 @@ function playSfx(name) {
     g.connect(ctx.destination);
     src.start(0);
   } catch (_) { /* ignore */ }
+}
+
+function weaponLoopVolume() {
+  return saveData.sfxVol * saveData.masterVol * (saveData.muted ? 0 : 0.55);
+}
+
+function stopWeaponLoopSfx() {
+  if (!_weaponLoopEl) return;
+  try {
+    _weaponLoopEl.pause();
+    _weaponLoopEl.currentTime = 0;
+  } catch (_) { /* ignore */ }
+  _weaponLoopEl = null;
+  _weaponLoopSfxId = null;
+}
+
+function refreshWeaponLoopVolume() {
+  if (_weaponLoopEl) _weaponLoopEl.volume = weaponLoopVolume();
+}
+
+function startWeaponLoopSfx(sfxId) {
+  if (saveData.muted || !sfxId) {
+    stopWeaponLoopSfx();
+    return;
+  }
+  try {
+    const ctx = getAudioCtx();
+    if (ctx.state === "suspended") ctx.resume();
+  } catch (_) { /* ignore */ }
+  const url = _sfxUrls[sfxId];
+  if (!url) return;
+  if (_weaponLoopSfxId === sfxId && _weaponLoopEl) {
+    _weaponLoopEl.volume = weaponLoopVolume();
+    if (_weaponLoopEl.paused) _weaponLoopEl.play().catch(() => {});
+    return;
+  }
+  stopWeaponLoopSfx();
+  _weaponLoopSfxId = sfxId;
+  const el = new Audio(url);
+  el.loop = true;
+  el.volume = weaponLoopVolume();
+  el.addEventListener("ended", () => {
+    if (_weaponLoopEl !== el || _weaponLoopSfxId !== sfxId) return;
+    try {
+      el.currentTime = 0;
+      el.play().catch(() => {});
+    } catch (_) { /* ignore */ }
+  });
+  _weaponLoopEl = el;
+  el.play().catch(() => {});
+}
+
+function syncWeaponLoopSfx() {
+  const wp = WEAPONS[player.weapon];
+  const wantsFire = (mouseLeftHeld || mouseRightHeld) && !player.reloading;
+  const sfxId = wp && !wp.melee ? WEAPON_LOOP_SFX[player.weapon] : null;
+  if (!wantsFire || !sfxId) {
+    stopWeaponLoopSfx();
+    return;
+  }
+  startWeaponLoopSfx(sfxId);
 }
 
 function setMusicTrack(trackId) {
@@ -911,6 +1548,8 @@ function setMusicTrack(trackId) {
 
 function refreshMusicVolume() {
   if (_musicEl) _musicEl.volume = saveData.musicVol * saveData.masterVol * (saveData.muted ? 0 : 1);
+  refreshWeaponLoopVolume();
+  if (saveData.muted) stopWeaponLoopSfx();
 }
 
 function pickRandomMusicTrack(excludeId) {
@@ -935,15 +1574,16 @@ function onLevelCompletedMusic() {
 }
 
 function getSettingsOverlayLayout() {
-  const pw = 320, ph = 248;
+  const pw = 320, ph = 278;
   const px = (VW - pw) / 2;
   const py = (VH - ph) / 2;
   const bx = px + 40, bw = 240, bh = 36;
-  const by = py + 188;
+  const by = py + 218;
   return {
     px, py, pw, ph, bx, by, bw, bh,
     muteY0: py + 54, muteY1: py + 82,
-    volY0: py + 100, volY1: py + 178,
+    langY0: py + 96, langY1: py + 124,
+    volY0: py + 132, volY1: py + 208,
   };
 }
 
@@ -954,12 +1594,13 @@ async function loadAssets() {
     const r = await fetch("assets/manifest.json", { cache: "no-store" });
     if (r.ok) manifest = await r.json();
   } catch (_) { /* offline */ }
+  const assetRev = String(manifest.assetsRev ?? manifest.version ?? 1);
+  const assetQ = `v=${assetRev}`;
   const base = "assets/";
   const items = [...(manifest.sprites || []), ...(manifest.music || []), ...(manifest.sfx || [])];
   const total = Math.max(1, items.length);
   let done = 0;
   ASSET_IMGS.__music = Object.create(null);
-  const spriteVer = "v=2";
   for (const s of manifest.sprites || []) {
     await new Promise((resolve) => {
       const im = new Image();
@@ -972,7 +1613,7 @@ async function loadAssets() {
         });
       };
       im.onerror = () => { done++; loadProgress = done / total; resolve(); };
-      im.src = `${base}${s.src}?${spriteVer}`;
+      im.src = `${base}${s.src}?${assetQ}`;
     });
   }
   if (!ASSET_IMGS[HERO_SPRITE_KEY]) {
@@ -985,22 +1626,23 @@ async function loadAssets() {
         });
       };
       im.onerror = () => resolve();
-      im.src = `${base}sprites/char_hero.png?${spriteVer}`;
+      im.src = `${base}sprites/char_hero.png?${assetQ}`;
     });
   }
   for (const m of manifest.music || []) {
-    ASSET_IMGS.__music[m.id] = `${base}${m.src}?v=1`;
+    ASSET_IMGS.__music[m.id] = `${base}${m.src}?${assetQ}`;
     done++; loadProgress = done / total;
   }
   _musicPoolIds = (manifest.music || []).map((m) => m.id);
   for (const x of manifest.sfx || []) {
+    _sfxUrls[x.id] = `${base}${x.src}?${assetQ}`;
     try {
       const ctx = getAudioCtx();
-      const ab = await fetch(base + x.src).then((r) => r.arrayBuffer());
+      const ab = await fetch(_sfxUrls[x.id], { cache: "no-store" }).then((r) => r.arrayBuffer());
       const copy = ab.slice(0);
       const buf = await ctx.decodeAudioData(copy);
       _sfxBuffers[x.id] = buf;
-    } catch (_) { /* skip */ }
+    } catch (_) { /* loop SFX may still play via Audio element */ }
     done++; loadProgress = done / total;
   }
   loadProgress = 1;
@@ -1025,7 +1667,46 @@ function drawSpriteEntity(x, y, r, img, emoji, flash) {
 }
 
 function botSpriteKey(b) {
-  return `bot_${b.type.kind}`;
+  return b.type.spriteKey || `bot_${b.type.kind}`;
+}
+
+function bossFireMangoPair(from, angle, cfg) {
+  if (from.cd > 0) return;
+  from.cd = cfg.fireCd ?? 0.85;
+  const muzzle = cfg.r + 10;
+  const speed = cfg.bulletSpeed ?? 320;
+  const dmg = cfg.bulletDamage ?? 30;
+  const perp = angle + Math.PI / 2;
+  const sep = 16;
+  const mx = from.x + Math.cos(angle) * muzzle;
+  const my = from.y + Math.sin(angle) * muzzle;
+  const vx = Math.cos(angle) * speed;
+  const vy = Math.sin(angle) * speed;
+  for (const sign of [-1, 1]) {
+    bullets.push({
+      x: mx + Math.cos(perp) * sep * sign,
+      y: my + Math.sin(perp) * sep * sign,
+      vx, vy,
+      owner: "bot",
+      damage: dmg,
+      r: 14,
+      life: 1.7,
+      mangoBullet: true,
+    });
+  }
+}
+
+function drawMangoBullet(bullet) {
+  const img = ASSET_IMGS.bullet_mango;
+  const r = bullet.r || 14;
+  if (img && img.complete && img.naturalWidth > 0) {
+    ctx.drawImage(img, bullet.x - r, bullet.y - r, r * 2, r * 2);
+  } else {
+    ctx.beginPath();
+    ctx.arc(bullet.x, bullet.y, r, 0, Math.PI * 2);
+    ctx.fillStyle = "#f59e0b";
+    ctx.fill();
+  }
 }
 
 // ── Физические хелперы ────────────────────────────────────────────────────────
@@ -1058,6 +1739,7 @@ function circleHitsWall(cx, cy, cr, w) {
 }
 
 function showMenu() {
+  stopWeaponLoopSfx();
   endlessActive = false;
   menuPage = 0;
   settingsOpen = false;
@@ -1065,6 +1747,7 @@ function showMenu() {
   canvas.width = VW; canvas.height = VH;
   W = VW; H = VH; camX = 0; camY = 0;
   if (isMobile) buildMobBtns();
+  persistSave();
 }
 
 function showCharSelect() {
@@ -1505,7 +2188,9 @@ function botThink(b, dt) {
   if (retreating || d > contactP - 2) {
     moveEntity(b, Math.cos(b.steerAngle) * moveSpeed * dt, Math.sin(b.steerAngle) * moveSpeed * dt, t.r);
   }
-  if (b.reactLeft <= 0 && b.cd <= 0) {
+  if (t.kind === "boss" && seesP && b.reactLeft <= 0 && d > contactP + 12 && b.cd <= 0) {
+    bossFireMangoPair(b, angToPlayer, t);
+  } else if (b.reactLeft <= 0 && b.cd <= 0) {
     const inP = seesP && d <= contactP;
     const inD = seesDog && dD <= contactD;
     const slashR = t.kind === "boss" ? 48 : 28;
@@ -1733,7 +2418,9 @@ function playerAttack(angle) {
     return;
   }
 
-  playSfx(player.weapon === "minigun_char" ? "shoot_minigun" : "shoot");
+  if (player.weapon === "hunter_sg") playSfxShot("shoot_shotgun");
+  if (player.weapon === "sniper_rifle") playSfxShot("shoot_sniper", 2);
+
   const bSpeed = wp.bulletSpeed ?? PLAYER.bulletSpeed;
   const muzzle = PLAYER.r + 6;
   const numBullets = wp.bullets || 1;
@@ -1899,7 +2586,8 @@ function updateCamera(dt) {
 
 function update(dt) {
   if (state === STATE.LOADING) return;
-  if (state === STATE.MENU || state === STATE.CHAR_SELECT) return;
+  if (state !== STATE.PLAYING) stopWeaponLoopSfx();
+  if (state === STATE.MENU || state === STATE.CHAR_SELECT || state === STATE.SKIN_SELECT) return;
   if (state === STATE.PAUSED) {
     if (camShakeT > 0) camShakeT = Math.max(0, camShakeT - dt);
     updateHud();
@@ -2142,6 +2830,10 @@ function update(dt) {
     state = STATE.LOST;
   } else if (bots.length === 0 && allWavesDone() && time > 0.3 && wonCountdown <= 0) {
     wonCountdown = 3.0;
+    if (!endlessActive && currentLevel >= 0) {
+      markLevelCleared(currentLevel);
+      persistSave();
+    }
     onLevelCompletedMusic();
     spawnFloater(W / 2, H * 0.5, "Собирай бонусы!", "#4ade80");
   }
@@ -2154,13 +2846,16 @@ function update(dt) {
         endlessWaveCompletePending = false;
         state = STATE.WON;
       } else if (!endlessActive) {
-        if (currentLevel + 1 >= LEVELS.length) state = STATE.CLEARED;
-        else {
-          if (currentLevel >= 0) {
-            saveData.maxUnlocked = Math.max(saveData.maxUnlocked, currentLevel + 1);
-            if (saveData.maxUnlocked > LEVELS.length - 1) saveData.maxUnlocked = LEVELS.length - 1;
-            persistSave();
-          }
+        if (currentLevel >= 0) {
+          markLevelCleared(currentLevel);
+          persistSave();
+        }
+        if (currentLevel + 1 >= LEVELS.length) {
+          saveData.campaignCleared = true;
+          saveData.maxUnlocked = LEVELS.length - 1;
+          persistSave();
+          state = STATE.CLEARED;
+        } else {
           state = STATE.WON;
         }
       }
@@ -2185,6 +2880,7 @@ function update(dt) {
     hudIceKingHp = ikE ? ikE.hp : 0;
   }
 
+  syncWeaponLoopSfx();
   updateHud();
   if (state === STATE.PLAYING) updateCamera(dt);
 }
@@ -2242,35 +2938,32 @@ function drawChoiceOverlay() {
   const wonTitle = endlessActive
     ? `Волна ${endlessWaveIdx + 1} завершена! 🎉`
     : (currentLevel >= 0 ? `Уровень ${currentLevel + 1} пройден! 🎉` : "Раунд завершён!");
-  ctx.fillText(wonTitle, VW / 2, 60);
+  ctx.fillText(wonTitle, VW / 2, isMobile ? 48 : 60);
   ctx.font = `15px ${EMOJI_FONT}`;
   ctx.fillStyle = "#cbd5e1";
-  ctx.fillText(isMobile ? "Тапни для выбора улучшения" : "1 / 2 — выбрать улучшение", VW / 2, 90);
-  ctx.font = `13px ${EMOJI_FONT}`;
-  ctx.fillStyle = "#94a3b8";
-  const st = `Убийств: ${runStats.kills} · Урон: ${Math.round(runStats.damageDealt)} · Получено: ${Math.round(runStats.damageTaken)} · Пикапы: ${runStats.pickups} · Время: ${formatTime(runStats.levelTime)}`;
-  ctx.fillText(st, VW / 2, 114);
+  ctx.fillText(isMobile ? "Тапни карточку улучшения" : "1 / 2 — выбрать улучшение", VW / 2, isMobile ? 76 : 90);
+  if (!isMobile) {
+    ctx.font = `13px ${EMOJI_FONT}`;
+    ctx.fillStyle = "#94a3b8";
+    const st = `Убийств: ${runStats.kills} · Урон: ${Math.round(runStats.damageDealt)} · Получено: ${Math.round(runStats.damageTaken)} · Пикапы: ${runStats.pickups} · Время: ${formatTime(runStats.levelTime)}`;
+    ctx.fillText(st, VW / 2, 114);
+  }
 
-  const opts = Object.values(UPGRADES);
-  const cardW = 260, cardH = 140, gapX = 24;
-  const totalW = opts.length * cardW + (opts.length - 1) * gapX;
-  const startX = (VW - totalW) / 2;
-  const cardY  = VH / 2 - cardH / 2 + 36;
-
-  opts.forEach((u, i) => {
-    const x = startX + i * (cardW + gapX);
+  const { cards } = getWonUpgradeLayout();
+  cards.forEach((c) => {
+    const { u, x, y, w, h, index } = c;
     ctx.fillStyle = "#1e293b";
     ctx.strokeStyle = "#7dd3fc"; ctx.lineWidth = 2.5;
-    roundRect(x, cardY, cardW, cardH, 14); ctx.fill(); ctx.stroke();
+    roundRect(x, y, w, h, 14); ctx.fill(); ctx.stroke();
     ctx.fillStyle = "#fde68a";
-    ctx.font = `bold 36px ${EMOJI_FONT}`; ctx.textAlign = "center";
-    ctx.fillText(`${i + 1}`, x + 28, cardY + 50);
+    ctx.font = `bold ${isMobile ? 28 : 36}px ${EMOJI_FONT}`; ctx.textAlign = "center";
+    ctx.fillText(`${index + 1}`, x + 28, y + (isMobile ? 40 : 50));
     ctx.fillStyle = "#f8fafc";
-    ctx.font = `bold 18px ${EMOJI_FONT}`;
-    ctx.fillText(u.title, x + cardW / 2, cardY + 36);
+    ctx.font = `bold ${isMobile ? 16 : 18}px ${EMOJI_FONT}`;
+    ctx.fillText(u.title, x + w / 2, y + (isMobile ? 28 : 36));
     ctx.fillStyle = "#cbd5e1";
     ctx.font = `13px ${EMOJI_FONT}`; ctx.textAlign = "left";
-    wrapText(u.desc, x + 16, cardY + 66, cardW - 24, 18);
+    wrapText(u.desc, x + 16, y + (isMobile ? 48 : 66), w - 24, isMobile ? 16 : 18);
     ctx.textAlign = "center";
   });
   ctx.textAlign = "left";
@@ -2333,15 +3026,17 @@ function getMenuLevelLayout() {
   const startX = (VW - totalW) / 2;
   const totalGridH = rows * cardH + (rows - 1) * gapY;
   const startY = Math.floor((VH - totalGridH) / 2 + 36);
-  const arrowW = 34;
+  const arrowW = isMobile ? 48 : 34;
   const arrowH = totalGridH;
   const pageLeftX = Math.max(6, startX - arrowW - 10);
   const pageRightX = Math.min(VW - 6 - arrowW, startX + totalW + 10);
   const endlessY = Math.min(VH - 52, startY + totalGridH + gapY + 18);
-  const ex = VW * 0.08, ew = VW * 0.56, eh = 36;
+  const ex = VW * 0.08, ew = VW * 0.56, eh = isMobile ? 44 : 36;
+  const endlessHitW = VW * 0.88;
+  const endlessHitX = (VW - endlessHitW) / 2;
   return {
     cols, rows, cardsPerPage, totalPages, page, cardW, cardH, gapX, gapY, startX, startY, totalW, totalGridH,
-    pageLeftX, pageRightX, arrowW, arrowH, endlessY, ex, ew, eh,
+    pageLeftX, pageRightX, arrowW, arrowH, endlessY, ex, ew, eh, endlessHitX, endlessHitW,
   };
 }
 
@@ -2352,7 +3047,7 @@ function drawMenu() {
   ctx.fillStyle = "#f1f5f9";
   ctx.font = `bold 34px ${EMOJI_FONT}`;
   ctx.textAlign = "center"; ctx.textBaseline = "middle";
-  ctx.fillText("⚔️  Выбор уровня", W / 2, 44);
+  ctx.fillText(t("levelPick"), W / 2, 44);
 
   // Кнопка «← Герой» (верхний левый угол)
   const _hBtnX = 14, _hBtnY = 10, _hBtnW = 130, _hBtnH = 34;
@@ -2362,11 +3057,26 @@ function drawMenu() {
   ctx.beginPath(); ctx.roundRect(_hBtnX, _hBtnY, _hBtnW, _hBtnH, 7); ctx.stroke();
   ctx.fillStyle = "#e0f2fe"; ctx.font = `bold 16px ${EMOJI_FONT}`;
   ctx.textAlign = "center"; ctx.textBaseline = "middle";
-  ctx.fillText("← Герой", _hBtnX + _hBtnW / 2, _hBtnY + _hBtnH / 2);
+  ctx.fillText(t("menuHero"), _hBtnX + _hBtnW / 2, _hBtnY + _hBtnH / 2);
+  const sk = getMenuSkinsBtnRect();
+  ctx.fillStyle = "#1e293b";
+  ctx.beginPath(); ctx.roundRect(sk.x, sk.y, sk.w, sk.h, 7); ctx.fill();
+  ctx.strokeStyle = "#a78bfa"; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.roundRect(sk.x, sk.y, sk.w, sk.h, 7); ctx.stroke();
+  ctx.fillStyle = "#e9d5ff"; ctx.font = `bold 15px ${EMOJI_FONT}`;
+  ctx.fillText(t("menuSkins"), sk.x + sk.w / 2, sk.y + sk.h / 2);
   ctx.font = `14px ${EMOJI_FONT}`;
   ctx.fillStyle = "#64748b";
   const ch = CHARACTERS[selectedChar];
-  ctx.fillText(`Персонаж: ${ch?.name ?? ""} · Страница: стрелки / колёсико · Уровни 1–8 на странице`, W / 2, 76);
+  const cleared = countClearedLevels();
+  const prog = saveData.campaignCleared
+    ? `Кампания пройдена! · ${cleared}/${LEVELS.length} уровней`
+    : `Прогресс: ${cleared}/${LEVELS.length} · открыт уровень ${saveData.maxUnlocked + 1}`;
+  const endlessRec = `♾ рекорд: волна ${saveData.endlessBestWave || 0}, время ${formatTime(saveData.endlessBest)}`;
+  ctx.fillText(`${prog} · ${endlessRec}`, W / 2, 76);
+  ctx.font = `11px ${EMOJI_FONT}`;
+  ctx.fillStyle = "#475569";
+  ctx.fillText(`${saveData.lang === "en" ? "Character" : "Персонаж"}: ${ch?.name ?? ""} · ${t("progressSave")}`, W / 2, 94);
 
   const M = getMenuLevelLayout();
   const startIdx = M.page * M.cardsPerPage;
@@ -2422,7 +3132,9 @@ function drawMenu() {
 
     ctx.fillStyle = "#64748b";
     ctx.font = `10px ${EMOJI_FONT}`;
-    ctx.fillText(locked ? "🔒 Пройди предыдущий" : (L.desc || ""), cx + M.cardW / 2, cy + M.cardH * 0.88);
+    let sub = locked ? "🔒 Пройди предыдущий" : (L.desc || "");
+    if (!locked && isLevelCleared(i)) sub = "✓ Пройден";
+    ctx.fillText(sub, cx + M.cardW / 2, cy + M.cardH * 0.88);
 
     if (locked) {
       ctx.fillStyle = "rgba(0,0,0,0.45)";
@@ -2480,32 +3192,39 @@ function drawSettingsOverlay() {
   const cx = px + pw / 2;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  const m = saveData.muted ? "Выкл" : "Вкл";
+  const m = saveData.muted ? t("off") : t("on");
+  const langLabel = saveData.lang === "en" ? t("langEn") : t("langRu");
 
   ctx.fillStyle = "#f8fafc";
   ctx.font = `bold 20px ${EMOJI_FONT}`;
-  ctx.fillText("Настройки", cx, py + 32);
+  ctx.fillText(t("settings"), cx, py + 32);
 
   ctx.font = `14px ${EMOJI_FONT}`;
   ctx.fillStyle = "#cbd5e1";
-  ctx.fillText(`Звук: ${m}`, cx, py + 68);
+  ctx.fillText(`${t("sound")}: ${m}`, cx, py + 68);
   ctx.fillStyle = "#94a3b8";
   ctx.font = `12px ${EMOJI_FONT}`;
-  ctx.fillText("G или тап — mute", cx, py + 92);
-  ctx.font = `14px ${EMOJI_FONT}`;
+  ctx.fillText(t("muteHint"), cx, py + 86);
+  ctx.fillStyle = "#fde68a";
+  ctx.font = `bold 14px ${EMOJI_FONT}`;
+  ctx.fillText(`${t("language")}: ${langLabel}`, cx, py + 110);
+  ctx.fillStyle = "#94a3b8";
+  ctx.font = `12px ${EMOJI_FONT}`;
+  ctx.fillText(t("langTap"), cx, py + 128);
   ctx.fillStyle = "#cbd5e1";
-  ctx.fillText(`Мастер ${Math.round(saveData.masterVol * 100)}%`, cx, py + 118);
-  ctx.fillText(`Музыка ${Math.round(saveData.musicVol * 100)}%`, cx, py + 144);
-  ctx.fillText(`SFX ${Math.round(saveData.sfxVol * 100)}%`, cx, py + 170);
+  ctx.font = `14px ${EMOJI_FONT}`;
+  ctx.fillText(`${t("master")} ${Math.round(saveData.masterVol * 100)}%`, cx, py + 150);
+  ctx.fillText(`${t("music")} ${Math.round(saveData.musicVol * 100)}%`, cx, py + 172);
+  ctx.fillText(`${t("sfx")} ${Math.round(saveData.sfxVol * 100)}%`, cx, py + 194);
   ctx.fillStyle = "#64748b";
   ctx.font = `11px ${EMOJI_FONT}`;
-  ctx.fillText("Тап слева / справа от центра — тише / громче", cx, py + 192);
+  ctx.fillText(t("volHint"), cx, py + 212);
 
   ctx.fillStyle = "#334155";
   roundRect(bx, by, bw, bh, 8); ctx.fill();
   ctx.fillStyle = "#e2e8f0";
   ctx.font = `bold 14px ${EMOJI_FONT}`;
-  ctx.fillText("Закрыть (Esc)", cx, by + bh / 2);
+  ctx.fillText(t("close"), cx, by + bh / 2);
   ctx.textAlign = "left";
   ctx.textBaseline = "alphabetic";
 }
@@ -2595,12 +3314,81 @@ function drawCharSelect() {
   });
 
   // Кнопка → в меню уровней
-  const btnW = 200, btnH = 44, btnX = (VW - btnW) / 2, btnY = VH - 58;
+  const playBtn = getCharSelectPlayBtnRect();
   ctx.fillStyle = "#0ea5e9";
-  roundRect(btnX, btnY, btnW, btnH, 12); ctx.fill();
+  roundRect(playBtn.x, playBtn.y, playBtn.w, playBtn.h, 12); ctx.fill();
   ctx.fillStyle = "#fff";
   ctx.font = `bold 17px ${EMOJI_FONT}`; ctx.textAlign = "center"; ctx.textBaseline = "middle";
-  ctx.fillText("Играть →", VW / 2, btnY + btnH / 2);
+  ctx.fillText("Играть →", VW / 2, playBtn.y + playBtn.h / 2);
+  const skinBtn = { x: VW - 128, y: 10, w: 112, h: 34 };
+  ctx.fillStyle = "#1e293b";
+  roundRect(skinBtn.x, skinBtn.y, skinBtn.w, skinBtn.h, 8); ctx.fill();
+  ctx.strokeStyle = "#a78bfa"; ctx.lineWidth = 1.5;
+  roundRect(skinBtn.x, skinBtn.y, skinBtn.w, skinBtn.h, 8); ctx.stroke();
+  ctx.fillStyle = "#e9d5ff";
+  ctx.font = `bold 13px ${EMOJI_FONT}`; ctx.textAlign = "center";
+  ctx.fillText("🎭 Скины", skinBtn.x + skinBtn.w / 2, skinBtn.y + skinBtn.h / 2);
+  ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
+}
+
+function drawSkinSelect() {
+  _drawEmojiFontPx = -1;
+  ctx.fillStyle = "#0b1220";
+  ctx.fillRect(0, 0, VW, VH);
+
+  const L = getSkinSelectLayout();
+  const skin = SKINS[selectedSkinIdx];
+
+  ctx.fillStyle = "#f1f5f9";
+  ctx.font = `bold 34px ${EMOJI_FONT}`;
+  ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  ctx.fillText(t("skinTitle"), VW / 2, 44);
+  ctx.font = `14px ${EMOJI_FONT}`;
+  ctx.fillStyle = "#64748b";
+  ctx.fillText(t("skinHint"), VW / 2, 72);
+
+  const drawArrow = (ax, dir, hot) => {
+    ctx.fillStyle = hot ? "#1e3a5f" : "#16253a";
+    ctx.strokeStyle = hot ? "#a78bfa" : "#475569";
+    ctx.lineWidth = 2;
+    roundRect(ax, L.arrowY, L.arrowW, L.arrowH, 10); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = "#f1f5f9";
+    ctx.font = `bold 26px ${EMOJI_FONT}`;
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText(dir < 0 ? "◀" : "▶", ax + L.arrowW / 2, L.arrowY + L.arrowH / 2);
+  };
+  if (L.useMobArrows) {
+    drawArrow(L.mobLeftX, -1, skinArrowHover === -1);
+    drawArrow(L.mobRightX, 1, skinArrowHover === 1);
+  } else {
+    drawArrow(L.arrowLeftX, -1, skinArrowHover === -1);
+    drawArrow(L.arrowRightX, 1, skinArrowHover === 1);
+  }
+
+  drawSkinPreviewFrame(L.previewX, L.previewY, L.previewW, L.previewH, getSkinSpriteImg(), "🙂");
+
+  ctx.fillStyle = "#f8fafc";
+  ctx.font = `bold 22px ${EMOJI_FONT}`;
+  ctx.fillText(skin.name, VW / 2, L.previewY + L.previewH + 28);
+  ctx.font = `13px ${EMOJI_FONT}`;
+  ctx.fillStyle = "#94a3b8";
+  ctx.fillText(`${selectedSkinIdx + 1} / ${SKINS.length}`, VW / 2, L.previewY + L.previewH + 50);
+
+  const back = L.backBtn;
+  ctx.fillStyle = "#1e3a5f";
+  roundRect(back.x, back.y, back.w, back.h, 8); ctx.fill();
+  ctx.strokeStyle = "#38bdf8"; ctx.lineWidth = 1.5;
+  roundRect(back.x, back.y, back.w, back.h, 8); ctx.stroke();
+  ctx.fillStyle = "#e0f2fe";
+  ctx.font = `bold 15px ${EMOJI_FONT}`;
+  ctx.fillText(t("skinBack"), back.x + back.w / 2, back.y + back.h / 2);
+
+  const done = L.doneBtn;
+  ctx.fillStyle = "#7c3aed";
+  roundRect(done.x, done.y, done.w, done.h, 12); ctx.fill();
+  ctx.fillStyle = "#fff";
+  ctx.font = `bold 17px ${EMOJI_FONT}`;
+  ctx.fillText(t("skinDone"), VW / 2, done.y + done.h / 2);
   ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
 }
 
@@ -2655,6 +3443,7 @@ function draw() {
     return;
   }
   if (state === STATE.CHAR_SELECT) { drawCharSelect(); return; }
+  if (state === STATE.SKIN_SELECT) { drawSkinSelect(); return; }
   if (state === STATE.MENU)        { drawMenu();       return; }
   _drawEmojiFontPx = -1;
 
@@ -2742,12 +3531,16 @@ function draw() {
     if (any) { ctx.fillStyle = "#fde047"; ctx.fill(); }
   }
 
+  for (const bullet of bullets) {
+    if (bullet.mangoBullet) drawMangoBullet(bullet);
+  }
+
   // ── Пули ботов (оранжевые) ────────────────────────────────────────────────
   {
     let any = false;
     ctx.beginPath();
     for (const bullet of bullets) {
-      if (!bullet.magicBlast && bullet.owner !== "player" && !bullet.iceBullet) {
+      if (!bullet.magicBlast && bullet.owner !== "player" && !bullet.iceBullet && !bullet.mangoBullet) {
         any = true;
         ctx.moveTo(bullet.x + bullet.r, bullet.y);
         ctx.arc(bullet.x, bullet.y, bullet.r, 0, Math.PI * 2);
@@ -2892,27 +3685,26 @@ function draw() {
       ctx.fillText(stl, VW / 2, VH / 2 + 40);
       ctx.textAlign = "left";
     }
-    // Мобильные кнопки поражения
     if (state === STATE.LOST && isMobile) {
-      const bW = 200, bH = 46, gap = 16;
-      const totalBW = bW * 2 + gap;
-      const bY = VH / 2 + 78;
-      const b1X = (VW - totalBW) / 2;
-      const b2X = b1X + bW + gap;
-      // Повтор
-      ctx.fillStyle = "#1e3a5f";
-      ctx.beginPath(); ctx.roundRect(b1X, bY, bW, bH, 8); ctx.fill();
-      ctx.strokeStyle = "#38bdf8"; ctx.lineWidth = 1.5;
-      ctx.beginPath(); ctx.roundRect(b1X, bY, bW, bH, 8); ctx.stroke();
-      ctx.fillStyle = "#e0f2fe"; ctx.font = `bold 17px ${EMOJI_FONT}`; ctx.textAlign = "center";
-      ctx.fillText("🔄 Повтор уровня", b1X + bW / 2, bY + bH / 2);
-      // Меню
-      ctx.fillStyle = "#1c1917";
-      ctx.beginPath(); ctx.roundRect(b2X, bY, bW, bH, 8); ctx.fill();
-      ctx.strokeStyle = "#64748b"; ctx.lineWidth = 1.5;
-      ctx.beginPath(); ctx.roundRect(b2X, bY, bW, bH, 8); ctx.stroke();
-      ctx.fillStyle = "#cbd5e1"; ctx.font = `bold 17px ${EMOJI_FONT}`; ctx.textAlign = "center";
-      ctx.fillText("🏠 В меню", b2X + bW / 2, bY + bH / 2);
+      for (const b of getLostBtnLayout()) {
+        const isRetry = b.action === "retry";
+        ctx.fillStyle = isRetry ? "#1e3a5f" : "#1c1917";
+        ctx.beginPath(); ctx.roundRect(b.x, b.y, b.w, b.h, 10); ctx.fill();
+        ctx.strokeStyle = isRetry ? "#38bdf8" : "#64748b"; ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.roundRect(b.x, b.y, b.w, b.h, 10); ctx.stroke();
+        ctx.fillStyle = isRetry ? "#e0f2fe" : "#cbd5e1";
+        ctx.font = `bold 17px ${EMOJI_FONT}`; ctx.textAlign = "center";
+        ctx.fillText(isRetry ? "🔄 Повтор уровня" : "🏠 В меню", b.x + b.w / 2, b.y + b.h / 2);
+      }
+      ctx.textAlign = "left";
+    }
+    if (state === STATE.CLEARED && isMobile) {
+      const b = getCharSelectPlayBtnRect();
+      ctx.fillStyle = "#0ea5e9";
+      ctx.beginPath(); ctx.roundRect(b.x, b.y, b.w, b.h, 10); ctx.fill();
+      ctx.fillStyle = "#fff";
+      ctx.font = `bold 17px ${EMOJI_FONT}`; ctx.textAlign = "center";
+      ctx.fillText("🏠 В меню", b.x + b.w / 2, b.y + b.h / 2);
       ctx.textAlign = "left";
     }
   }
@@ -3015,6 +3807,14 @@ window.addEventListener("keydown", (e) => {
     return;
   }
 
+  if (state === STATE.SKIN_SELECT) {
+    if (e.code === "Escape") { leaveSkinSelect(); e.preventDefault(); return; }
+    if (e.code === "ArrowLeft") { cycleSkin(-1); e.preventDefault(); return; }
+    if (e.code === "ArrowRight") { cycleSkin(1); e.preventDefault(); return; }
+    if (e.code === "Enter" || e.code === "Space") { leaveSkinSelect(); e.preventDefault(); return; }
+    return;
+  }
+
   if (state === STATE.CHAR_SELECT) {
     const charIds = Object.keys(CHARACTERS);
     const keyMap = { Digit1:0,Digit2:1,Digit3:2,Digit4:3,Digit5:4, Numpad1:0,Numpad2:1,Numpad3:2,Numpad4:3,Numpad5:4 }[e.code];
@@ -3030,6 +3830,7 @@ window.addEventListener("keydown", (e) => {
     if (settingsOpen) {
       if (e.code === "Escape") { settingsOpen = false; return; }
       if (e.code === "KeyN") { saveData.muted = !saveData.muted; persistSave(); refreshMusicVolume(); return; }
+      if (e.code === "KeyL") { toggleLanguage(); return; }
       if (e.code === "Equal" || e.code === "NumpadAdd") {
         saveData.masterVol = Math.min(1, saveData.masterVol + 0.08);
         saveData.musicVol = Math.min(1, saveData.musicVol + 0.08);
@@ -3085,9 +3886,20 @@ canvas.addEventListener("mousemove", (e) => {
   const rect = getCanvasRectCss();
   const rw = Math.max(1, rect.width), rh = Math.max(1, rect.height);
 
+  if (state === STATE.SKIN_SELECT) {
+    const { x, y } = clientToCanvas(e.clientX, e.clientY);
+    const L = getSkinSelectLayout();
+    skinArrowHover = skinSelectArrowDir(x, y, L);
+    return;
+  }
+
   if (state === STATE.CHAR_SELECT) {
-    const x = (e.clientX - rect.left) * (VW / rw);
-    const y = (e.clientY - rect.top)  * (VH / rh);
+    const { x, y } = clientToCanvas(e.clientX, e.clientY);
+    const skinBtn = { x: VW - 128, y: 10, w: 112, h: 34 };
+    if (hitRect(x, y, skinBtn.x, skinBtn.y, skinBtn.w, skinBtn.h, 6)) {
+      charHoverIdx = -1;
+      return;
+    }
     const charIds = Object.keys(CHARACTERS);
     const cols = Math.min(3, charIds.length);
     const cardW = Math.floor((VW * 0.92 - (cols - 1) * 16) / cols);
@@ -3118,12 +3930,13 @@ canvas.addEventListener("mousemove", (e) => {
     mouseY = (e.clientY - rect.top)  * scaleY + camY;
     return;
   }
-  // Menu hover
-  const x = (e.clientX - rect.left) * (VW / rw);
-  const y = (e.clientY - rect.top)  * (VH / rh);
-  menuGearHover = x >= VW - 100 && x <= VW - 48 && y >= 4 && y <= 46;
+  const { x, y } = clientToCanvas(e.clientX, e.clientY);
+  const gear = getMenuGearBtnRect();
+  const skinsBtn = getMenuSkinsBtnRect();
+  menuGearHover = hitRect(x, y, gear.x, gear.y, gear.w, gear.h, 4);
+  void hitRect(x, y, skinsBtn.x, skinsBtn.y, skinsBtn.w, skinsBtn.h, 4);
   const M = getMenuLevelLayout();
-  menuHoverEndless = x >= M.ex && x <= M.ex + M.ew && y >= M.endlessY && y <= M.endlessY + M.eh;
+  menuHoverEndless = hitRect(x, y, M.endlessHitX, M.endlessY, M.endlessHitW, M.eh, 4);
   menuPageHover = 0;
   if (M.totalPages > 1) {
     if (x >= M.pageLeftX && x <= M.pageLeftX + M.arrowW && y >= M.startY && y <= M.startY + M.arrowH) menuPageHover = -1;
@@ -3146,105 +3959,17 @@ canvas.addEventListener("mousemove", (e) => {
 });
 
 canvas.addEventListener("click", (e) => {
-  const rect = getCanvasRectCss();
-  const rw = Math.max(1, rect.width), rh = Math.max(1, rect.height);
-  const x = (e.clientX - rect.left) * (VW / rw);
-  const y = (e.clientY - rect.top)  * (VH / rh);
-
-  if (state === STATE.WON) {
-    const opts = getAvailableUpgrades();
-    const cardW = 260, cardH = 140, gapX = 24;
-    const totalW = opts.length * cardW + (opts.length - 1) * gapX;
-    const startX = (VW - totalW) / 2;
-    const cardY  = VH / 2 - cardH / 2 + 36;
-    for (let i = 0; i < opts.length; i++) {
-      const cx = startX + i * (cardW + gapX);
-      if (x >= cx && x <= cx + cardW && y >= cardY && y <= cardY + cardH) {
-        applyUpgrade(opts[i].id);
-        advanceLevel();
-        return;
-      }
-    }
+  const { x, y } = clientToCanvas(e.clientX, e.clientY);
+  if (state === STATE.WON) { handleWonPointer(x, y); return; }
+  if (state === STATE.SKIN_SELECT) { handleSkinSelectPointer(x, y); return; }
+  if (state === STATE.CHAR_SELECT) { handleCharSelectPointer(x, y); return; }
+  if (state === STATE.LOST) { handleLostPointer(x, y); return; }
+  if (state === STATE.CLEARED && isMobile) {
+    const b = getCharSelectPlayBtnRect();
+    if (hitRect(x, y, b.x, b.y, b.w, b.h)) showMenu();
     return;
   }
-
-  if (state === STATE.CHAR_SELECT) {
-    // "Играть →" button
-    const btnW = 200, btnH = 44, btnX = (VW - btnW) / 2, btnY = VH - 58;
-    if (x >= btnX && x <= btnX + btnW && y >= btnY && y <= btnY + btnH) { showMenu(); return; }
-    // Character cards
-    const charIds = Object.keys(CHARACTERS);
-    const cols = Math.min(3, charIds.length);
-    const cardW = Math.floor((VW * 0.92 - (cols - 1) * 16) / cols);
-    const cardH = Math.floor(VH * 0.38);
-    const gapX = 16, gapY = Math.floor(VH * 0.04);
-    const totalW = cols * cardW + (cols - 1) * gapX;
-    const startX = (VW - totalW) / 2;
-    const rows = Math.ceil(charIds.length / cols);
-    const totalGridH = rows * cardH + (rows - 1) * gapY;
-    const startY = Math.floor((VH - totalGridH) / 2 + 10);
-    charIds.forEach((id, i) => {
-      const col = i % cols, row = Math.floor(i / cols);
-      const rowCount = Math.min(cols, charIds.length - row * cols);
-      const rowW = rowCount * cardW + (rowCount - 1) * gapX;
-      const rowStartX = (VW - rowW) / 2;
-      const cx = rowStartX + col * (cardW + gapX);
-      const cy = startY + row * (cardH + gapY);
-      if (x >= cx && x <= cx + cardW && y >= cy && y <= cy + cardH) {
-        selectedChar = id; persistSave(); showMenu();
-      }
-    });
-    return;
-  }
-
-  if (state !== STATE.MENU) return;
-  // «← Герой» кнопка (чуть расширенная зона нажатия)
-  if (x >= 6 && x <= 154 && y >= 4 && y <= 46) { showCharSelect(); return; }
-  if (x >= VW - 100 && x <= VW - 48 && y >= 4 && y <= 46) { settingsOpen = !settingsOpen; refreshMusicVolume(); return; }
-
-  if (settingsOpen) {
-    const S = getSettingsOverlayLayout();
-    const { px, py, pw, ph, bx, by, bw, bh, muteY0, muteY1, volY0, volY1 } = S;
-    if (x < px || x > px + pw || y < py || y > py + ph) { settingsOpen = false; return; }
-    if (y >= muteY0 && y <= muteY1) { saveData.muted = !saveData.muted; persistSave(); refreshMusicVolume(); return; }
-    if (x >= bx && x <= bx + bw && y >= by && y <= by + bh) { settingsOpen = false; return; }
-    if (y >= volY0 && y <= volY1) {
-      if (x < px + pw / 2) {
-        saveData.masterVol = Math.max(0, saveData.masterVol - 0.1);
-        saveData.musicVol = Math.max(0, saveData.musicVol - 0.1);
-        saveData.sfxVol = Math.max(0, saveData.sfxVol - 0.1);
-      } else {
-        saveData.masterVol = Math.min(1, saveData.masterVol + 0.1);
-        saveData.musicVol = Math.min(1, saveData.musicVol + 0.1);
-        saveData.sfxVol = Math.min(1, saveData.sfxVol + 0.1);
-      }
-      persistSave(); refreshMusicVolume(); return;
-    }
-    return;
-  }
-
-  const M = getMenuLevelLayout();
-  if (M.totalPages > 1) {
-    if (x >= M.pageLeftX && x <= M.pageLeftX + M.arrowW && y >= M.startY && y <= M.startY + M.arrowH) {
-      menuPage = Math.max(0, menuPage - 1);
-      return;
-    }
-    if (x >= M.pageRightX && x <= M.pageRightX + M.arrowW && y >= M.startY && y <= M.startY + M.arrowH) {
-      menuPage = Math.min(M.totalPages - 1, menuPage + 1);
-      return;
-    }
-  }
-  if (x >= M.ex && x <= M.ex + M.ew && y >= M.endlessY && y <= M.endlessY + M.eh) { startEndless(); return; }
-  const startIdx = M.page * M.cardsPerPage;
-  for (let k = 0; k < M.cardsPerPage; k++) {
-    const i = startIdx + k;
-    if (i >= LEVELS.length) break;
-    if (i > saveData.maxUnlocked) continue;
-    const col = k % M.cols, row = Math.floor(k / M.cols);
-    const cx = M.startX + col * (M.cardW + M.gapX);
-    const cy = M.startY + row * (M.cardH + M.gapY);
-    if (x >= cx && x <= cx + M.cardW && y >= cy && y <= cy + M.cardH) { startFromLevel(i); return; }
-  }
+  if (state === STATE.MENU) handleMenuPointer(x, y);
 });
 
 canvas.addEventListener("wheel", (e) => {
@@ -3271,9 +3996,10 @@ if (isMobile) {
   const JOY_MAX = 70;
 
   function handleMobBtn(cx, cy) {
+    const hitR = mobBtnRadius() + MOB_HIT_PAD;
     for (const btn of mobBtns) {
       const dx = cx - btn.ax, dy = cy - btn.ay;
-      if (dx*dx + dy*dy <= btn.r * btn.r) {
+      if (dx * dx + dy * dy <= hitR * hitR) {
         if (btn.id === "pause") {
           if (state === STATE.PLAYING) {
             state = STATE.PAUSED;
@@ -3291,39 +4017,15 @@ if (isMobile) {
 
   canvas.addEventListener("touchstart", (e) => {
     e.preventDefault();
+    tryEnterMobileFullscreen();
 
-    if (state === STATE.CHAR_SELECT) {
-      const { x, y } = scaledTouch(e.changedTouches[0]);
-      // "Играть →" button
-      const btnW = 200, btnH = 44, btnX = (VW - btnW) / 2, btnY = VH - 58;
-      if (x >= btnX && x <= btnX + btnW && y >= btnY && y <= btnY + btnH) { showMenu(); return; }
-      // Character cards
-      const charIds = Object.keys(CHARACTERS);
-      const cols = Math.min(3, charIds.length);
-      const cardW = Math.floor((VW * 0.92 - (cols - 1) * 16) / cols);
-      const cardH = Math.floor(VH * 0.38);
-      const gapX = 16, gapY = Math.floor(VH * 0.04);
-      const rows = Math.ceil(charIds.length / cols);
-      const totalW = cols * cardW + (cols - 1) * gapX;
-      const startX = (VW - totalW) / 2;
-      const totalGridH = rows * cardH + (rows - 1) * gapY;
-      const startY = Math.floor((VH - totalGridH) / 2 + 10);
-      charIds.forEach((id, i) => {
-        const col = i % cols, row = Math.floor(i / cols);
-        const rowCount = Math.min(cols, charIds.length - row * cols);
-        const rowW = rowCount * cardW + (rowCount - 1) * gapX;
-        const rowStartX = (VW - rowW) / 2;
-        const cx2 = rowStartX + col * (cardW + gapX);
-        const cy2 = startY + row * (cardH + gapY);
-        if (x >= cx2 && x <= cx2 + cardW && y >= cy2 && y <= cy2 + cardH) {
-          selectedChar = id; persistSave(); showMenu();
-        }
-      });
-      return;
-    }
+    const t0 = e.changedTouches[0];
+    if (!t0) return;
+    const { x, y } = scaledTouch(t0);
 
+    if (state === STATE.SKIN_SELECT) { handleSkinSelectPointer(x, y); return; }
+    if (state === STATE.CHAR_SELECT) { handleCharSelectPointer(x, y); return; }
     if (state === STATE.PAUSED) {
-      const { x, y } = scaledTouch(e.changedTouches[0]);
       if (handleMobBtn(x, y)) return;
       state = STATE.PLAYING;
       mJoy.active = false; mJoy.dx = 0; mJoy.dy = 0;
@@ -3331,101 +4033,28 @@ if (isMobile) {
       mouseLeftHeld = false;
       return;
     }
-
-    if (state === STATE.LOST) {
-      const { x, y } = scaledTouch(e.changedTouches[0]);
-      const bW = 200, bH = 46, gap = 16;
-      const totalBW = bW * 2 + gap;
-      const bY = VH / 2 + 78;
-      const b1X = (VW - totalBW) / 2;
-      const b2X = b1X + bW + gap;
-      if (x >= b1X && x <= b1X + bW && y >= bY && y <= bY + bH) {
-        player.hp = player.maxHp;
-        if (endlessActive) {
-          endlessWaveIdx = 0;
-          pickEndlessMap();
-        }
-        loadLevel(endlessActive ? -1 : currentLevel);
-        return;
-      }
-      if (x >= b2X && x <= b2X + bW && y >= bY && y <= bY + bH) { showMenu(); return; }
+    if (state === STATE.LOST) { handleLostPointer(x, y); return; }
+    if (state === STATE.CLEARED) {
+      const b = getCharSelectPlayBtnRect();
+      if (hitRect(x, y, b.x, b.y, b.w, b.h)) showMenu();
       return;
     }
-
-    if (state === STATE.MENU) {
-      const { x, y } = scaledTouch(e.changedTouches[0]);
-      if (x >= 6 && x <= 154 && y >= 4 && y <= 46) { showCharSelect(); return; }
-      if (x >= VW - 100 && x <= VW - 48 && y >= 4 && y <= 46) { settingsOpen = !settingsOpen; refreshMusicVolume(); return; }
-      if (settingsOpen) {
-        const S = getSettingsOverlayLayout();
-        const { px, py, pw, ph, bx, by, bw, bh, muteY0, muteY1, volY0, volY1 } = S;
-        if (x < px || x > px + pw || y < py || y > py + ph) { settingsOpen = false; return; }
-        if (y >= muteY0 && y <= muteY1) { saveData.muted = !saveData.muted; persistSave(); refreshMusicVolume(); return; }
-        if (x >= bx && x <= bx + bw && y >= by && y <= by + bh) { settingsOpen = false; return; }
-        if (y >= volY0 && y <= volY1) {
-          if (x < px + pw / 2) {
-            saveData.masterVol = Math.max(0, saveData.masterVol - 0.1);
-            saveData.musicVol = Math.max(0, saveData.musicVol - 0.1);
-            saveData.sfxVol = Math.max(0, saveData.sfxVol - 0.1);
-          } else {
-            saveData.masterVol = Math.min(1, saveData.masterVol + 0.1);
-            saveData.musicVol = Math.min(1, saveData.musicVol + 0.1);
-            saveData.sfxVol = Math.min(1, saveData.sfxVol + 0.1);
-          }
-          persistSave(); refreshMusicVolume(); return;
-        }
-        return;
-      }
-      const M = getMenuLevelLayout();
-      if (M.totalPages > 1) {
-        if (x >= M.pageLeftX && x <= M.pageLeftX + M.arrowW && y >= M.startY && y <= M.startY + M.arrowH) {
-          menuPage = Math.max(0, menuPage - 1);
-          return;
-        }
-        if (x >= M.pageRightX && x <= M.pageRightX + M.arrowW && y >= M.startY && y <= M.startY + M.arrowH) {
-          menuPage = Math.min(M.totalPages - 1, menuPage + 1);
-          return;
-        }
-      }
-      if (x >= M.ex && x <= M.ex + M.ew && y >= M.endlessY && y <= M.endlessY + M.eh) { startEndless(); return; }
-      const startIdx = M.page * M.cardsPerPage;
-      for (let k = 0; k < M.cardsPerPage; k++) {
-        const i = startIdx + k;
-        if (i >= LEVELS.length) break;
-        if (i > saveData.maxUnlocked) continue;
-        const col = k % M.cols, row = Math.floor(k / M.cols);
-        const cx = M.startX + col * (M.cardW + M.gapX);
-        const cy = M.startY + row * (M.cardH + M.gapY);
-        if (x >= cx && x <= cx + M.cardW && y >= cy && y <= cy + M.cardH) { startFromLevel(i); return; }
-      }
-      return;
-    }
-
-    if (state === STATE.WON) {
-      const { x, y } = scaledTouch(e.changedTouches[0]);
-      const opts = getAvailableUpgrades();
-      const cardW = 260, cardH = 140, gapX = 24;
-      const totalW = opts.length * cardW + (opts.length - 1) * gapX;
-      const startX = (VW - totalW) / 2;
-      const cardY  = VH / 2 - cardH / 2 + 36;
-      for (let i = 0; i < opts.length; i++) {
-        const cx = startX + i * (cardW + gapX);
-        if (x >= cx && x <= cx + cardW && y >= cardY && y <= cardY + cardH) {
-          applyUpgrade(opts[i].id); advanceLevel(); return;
-        }
-      }
-      return;
-    }
-
-    if (state !== STATE.PLAYING && state !== STATE.PAUSED) return;
+    if (state === STATE.MENU) { handleMenuPointer(x, y); return; }
+    if (state === STATE.WON) { handleWonPointer(x, y); return; }
+    if (state !== STATE.PLAYING) return;
 
     for (const touch of e.changedTouches) {
-      const { x, y } = scaledTouch(touch);
-      if (handleMobBtn(x, y)) continue;
-      if (x < VW / 2) {
-        if (!mJoy.active) { mJoy.active = true; mJoy.id = touch.identifier; mJoy.baseX = x; mJoy.baseY = y; mJoy.dx = 0; mJoy.dy = 0; }
-      } else {
-        if (!mAimJoy.active) { mAimJoy.active = true; mAimJoy.id = touch.identifier; mAimJoy.baseX = x; mAimJoy.baseY = y; mAimJoy.dx = 0; mAimJoy.dy = 0; }
+      const pt = scaledTouch(touch);
+      if (handleMobBtn(pt.x, pt.y)) continue;
+      if (isMobUiZone(pt.x, pt.y)) continue;
+      if (pt.x < VW / 2) {
+        if (!mJoy.active) {
+          mJoy.active = true; mJoy.id = touch.identifier;
+          mJoy.baseX = pt.x; mJoy.baseY = pt.y; mJoy.dx = 0; mJoy.dy = 0;
+        }
+      } else if (!mAimJoy.active) {
+        mAimJoy.active = true; mAimJoy.id = touch.identifier;
+        mAimJoy.baseX = pt.x; mAimJoy.baseY = pt.y; mAimJoy.dx = 0; mAimJoy.dy = 0;
       }
     }
   }, { passive: false });
@@ -3465,12 +4094,14 @@ if (isMobile) {
 
 async function bootstrap() {
   loadSave();
+  setupAutoSave();
   try {
     await loadAssets();
   } catch (err) {
     console.warn("[game] loadAssets", err);
     assetsReady = true;
   }
+  setupMobileFullscreenUi();
   newGame();
   canvas.focus();
   requestAnimationFrame(frame);

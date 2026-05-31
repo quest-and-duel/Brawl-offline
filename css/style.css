@@ -4,6 +4,10 @@
   box-sizing: border-box;
 }
 
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
 body {
   margin: 0;
   min-height: 100vh;
@@ -58,88 +62,93 @@ body {
   touch-action: none;
   -webkit-user-select: none;
   user-select: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
-/* ── Мобильный портрет: авто-поворот в ландшафт ─────────────────────────── */
-@media (orientation: portrait) and (pointer: coarse) {
-  html, body {
-    overflow: hidden;
-    height: 100%;
-    width: 100%;
-  }
-  body {
-    position: fixed;
-    /* Размеры меняем местами: ширина = высота экрана, высота = ширина экрана */
-    width: 100dvh;
-    height: 100dvw;
-    top: 0;
-    left: 0;
-    transform-origin: top left;
-    /* Поворот по часовой + сдвиг чтобы попасть в viewport */
-    transform: rotate(90deg) translateY(-100%);
-    overflow: hidden;
-    /* Внутренний layout — как в ландшафте */
-    display: flex;
-    flex-direction: column;
-    padding: 6px;
-    box-sizing: border-box;
-    max-width: none;
-    margin: 0;
-  }
-  .wrap {
-    all: unset;
-    display: flex;
-    flex-direction: column;
-    flex: 1;
-    width: 100%;
-    max-width: 100%;
-    box-sizing: border-box;
-    overflow: hidden;
-  }
-  .hud {
-    margin-bottom: 4px;
-    flex-shrink: 0;
-  }
-  .sub    { display: none; }
-  .title  { font-size: 0.95rem; margin: 0 0 2px; }
-  .stats  { font-size: 0.78rem; gap: 4px 10px; margin-bottom: 0; }
-  #game   {
-    flex: 1;
-    width: 100%;
-    max-width: none;
-    height: auto;
-    min-height: 0;
-    border-radius: 8px;
-    object-fit: contain;
-  }
+/* ── Телефон: игра на весь экран (без поворота через CSS) ───────────────── */
+html.mobile-game,
+body.mobile-game {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  min-height: 100dvh;
+  overflow: hidden;
+  overscroll-behavior: none;
+  touch-action: none;
+  background: #0f1419;
 }
 
-/* ── Мобильный ландшафт ──────────────────────────────────────────────────── */
+body.mobile-game {
+  padding:
+    env(safe-area-inset-top, 0)
+    env(safe-area-inset-right, 0)
+    env(safe-area-inset-bottom, 0)
+    env(safe-area-inset-left, 0);
+}
+
+body.mobile-game .wrap {
+  display: flex;
+  flex-direction: column;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  min-height: 100dvh;
+}
+
+body.mobile-game .hud {
+  display: none;
+}
+
+body.mobile-game #game {
+  flex: 1 1 auto;
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  min-height: 0;
+  border-radius: 0;
+  box-shadow: none;
+  object-fit: contain;
+}
+
+body.mobile-game:fullscreen #game,
+body.mobile-game:-webkit-full-screen #game {
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+}
+
+/* Кнопка «на весь экран» поверх страницы (видна до первого тапа по canvas) */
+#fs-hint {
+  display: none;
+  position: fixed;
+  z-index: 20;
+  right: max(12px, env(safe-area-inset-right, 12px));
+  bottom: max(12px, env(safe-area-inset-bottom, 12px));
+  padding: 12px 16px;
+  border: none;
+  border-radius: 10px;
+  background: #1e3a5f;
+  color: #e0f2fe;
+  font: 600 14px system-ui, sans-serif;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html.mobile-game #fs-hint {
+  display: block;
+}
+
+html.mobile-game.fs-active #fs-hint {
+  display: none;
+}
+
+/* Ландшафт на телефоне — чуть компактнее отступы */
 @media (orientation: landscape) and (pointer: coarse) {
-  html, body {
-    overflow: hidden;
-    height: 100dvh;
-  }
-  .wrap {
-    display: flex;
-    flex-direction: column;
-    height: 100dvh;
-    max-width: 100%;
-    padding: 4px 8px;
-    box-sizing: border-box;
-    margin: 0;
-  }
-  .hud   { margin-bottom: 4px; flex-shrink: 0; }
-  .sub   { display: none; }
-  .title { font-size: 0.9rem; margin: 0 0 2px; }
-  .stats { font-size: 0.78rem; gap: 4px 10px; margin-bottom: 0; }
-  #game  {
-    flex: 1;
-    width: 100%;
-    max-width: none;
-    height: 0;   /* flex управляет высотой */
-    min-height: 0;
-    border-radius: 8px;
-    object-fit: contain;
+  body.mobile-game .wrap {
+    padding: 0;
   }
 }

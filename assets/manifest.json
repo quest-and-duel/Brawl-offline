@@ -1,7 +1,14 @@
 {
-  "version": 1,
+  "version": 5,
+  "assetsRev": 5,
   "sprites": [
-    { "id": "char_hero", "src": "sprites/char_hero.png" }
+    { "id": "char_hero", "src": "sprites/char_hero.png" },
+    { "id": "bot_boss", "src": "sprites/bot_boss.png" },
+    { "id": "bullet_mango", "src": "sprites/bullet_mango.png" },
+    { "id": "skin_elon", "src": "sprites/skins/skin_elon.png" },
+    { "id": "skin_mrbeast", "src": "sprites/skins/skin_mrbeast.png" },
+    { "id": "skin_emoji", "src": "sprites/skins/skin_emoji.png" },
+    { "id": "skin_nagiev", "src": "sprites/skins/skin_nagiev.png" }
   ],
   "music": [
     { "id": "track_fluffing", "src": "music/fluffing_duck.mp3" },
@@ -11,5 +18,10 @@
     { "id": "track_silly_intro", "src": "music/silly_intro.mp3" },
     { "id": "track_investigations", "src": "music/investigations.mp3" }
   ],
-  "sfx": []
+  "sfx": [
+    { "id": "shoot_assault", "src": "sfx/shoot_assault.mp3" },
+    { "id": "shoot_sniper", "src": "sfx/shoot_sniper.mp3" },
+    { "id": "shoot_minigun", "src": "sfx/shoot_minigun.mp3" },
+    { "id": "shoot_shotgun", "src": "sfx/shoot_shotgun.mp3" }
+  ]
 }
